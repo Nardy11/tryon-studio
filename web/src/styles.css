@@ -444,3 +444,20 @@ input[type='text'], input[type='number'] {
 
 /* Live: a status line at the bottom, so you can still see yourself while the first look is made. */
 .plaque.low { top: auto; bottom: 16px; transform: translateX(-50%); }
+
+/* ---------- size check ---------- */
+.body-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.body-fields input { width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); font: inherit; }
+.body-note { grid-column: 1 / -1; margin: 0; }
+.size-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.size-chips button {
+  min-width: 44px; padding: 6px 10px; border-radius: 8px; border: 1.5px solid var(--line);
+  background: var(--bg); color: var(--ink); font: inherit; font-weight: 600; cursor: pointer;
+}
+.size-chips button.on { border-color: var(--ink); background: var(--ink); color: var(--bg); }
+.fit-badge { display: grid; gap: 2px; margin: 0; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); font-size: 13.5px; }
+.fit-badge strong { font-size: 14px; }
+.fit-badge.good { border-color: #2f8f5b; background: rgb(47 143 91 / 0.1); }
+.fit-badge.warn { border-color: #c9922a; background: rgb(201 146 42 / 0.12); }
+.fit-badge.bad { border-color: #c4453a; background: rgb(196 69 58 / 0.1); }
+.fit-badge.compact { max-width: min(100%, 460px); justify-self: center; text-align: center; }

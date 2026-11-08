@@ -137,6 +137,18 @@ export function Mirror({ before, run, engineLabel, ahead, title }: Props) {
           ))}
         </ul>
       )}
+      {showCompare && run?.status === 'done' && run.fit && run.fit.verdict !== 'unknown' && run.fit.worn && (
+        <p className={`fit-badge compact ${run.fit.verdict === 'fits' ? 'good' : run.fit.verdict === 'too_small' || run.fit.verdict === 'too_big' ? 'bad' : 'warn'}`} role="status">
+          <strong>Shown in {run.fit.worn}</strong>
+          <span>
+            {run.fit.drawn_in_own_size
+              ? `Drawn in your size, ${run.fit.needed}: the ${run.fit.off < 0 ? 'tight' : 'loose'} version couldn’t be drawn safely.`
+              : run.fit.off === 0
+                ? `Your size (${run.fit.needed}).`
+                : `${Math.abs(run.fit.off)} size${Math.abs(run.fit.off) === 1 ? '' : 's'} too ${run.fit.off < 0 ? 'small' : 'big'} for you (you're about ${run.fit.needed}).`}
+          </span>
+        </p>
+      )}
       {showCompare && run?.status === 'done' && (
         <figcaption className="m-caption">
           {title && <span>{title}</span>}

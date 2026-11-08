@@ -27,6 +27,7 @@ from .jobs import JobManager, QueueFull
 from . import quality, safety
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+log = logging.getLogger("tryon.api")
 
 ENGINES = {
     "flux-klein": FluxKleinEngine(),
@@ -199,6 +200,58 @@ def _rate_limit(request: Request, live: bool = False) -> None:
         _recent.clear()
 
 
+def _valid_body(height_cm: Optional[float], weight_kg: Optional[float]) -> tuple[float, Optional[float]]:
+    if height_cm is None or not (120 <= height_cm <= 220):
+        raise HTTPException(422, "Enter your height in cm (120–220).")
+    if weight_kg is not None and not (30 <= weight_kg <= 250):
+        raise HTTPException(422, "Enter your weight in kg (30–250), or leave it empty.")
+    return height_cm, weight_kg
+
+
+def _fit_for(person, garment, height_cm: float, weight_kg: Optional[float], sizes: str) -> Optional[dict]:
+    """The size verdict for this shopper and outfit, recomputed here (never trusted from the page)."""
+    from . import sizing
+    from .jobs import _outfit_cached
+
+    height_cm, weight_kg = _valid_body(height_cm, weight_kg)
+    stock = [sizing.SIZES.index(s.strip().upper()) for s in sizes.split(",") if s.strip().upper() in sizing.SIZES]
+    if not stock:
+        return None
+    est = sizing.estimate(person, height_cm, weight_kg)
+    if est["confidence"] == "none":
+        return {"verdict": "unknown", "needed": None, "worn": None, "off": 0, "reason": est.get("reason")}
+    outfit = _outfit_cached(garment)
+    parts = {layer.part for layer in outfit.layers} or {"upper"}
+    v = sizing.verdict(sizing.needed_size(est, parts), stock)
+    log.info("size check: needs %s, shown in %s (%s)", v["needed"], v["worn"], v["verdict"])  # letters only
+    return v
+
+
+@app.post("/api/size")
+async def size_endpoint(
+    person: UploadFile = File(...),
+    height_cm: float = Form(...),
+    weight_kg: Optional[float] = Form(None),
+) -> dict:
+    """The shopper's estimated measurements and size, from their photo and height (and weight).
+    Used in memory only; nothing is stored or logged."""
+    import asyncio
+
+    from . import sizing
+
+    height_cm, weight_kg = _valid_body(height_cm, weight_kg)
+    img = await _read(person, "person", True)
+    verdict = await asyncio.to_thread(safety.check_person, img)
+    if not verdict.ok:
+        raise HTTPException(503 if verdict.code == "unavailable" else 422, verdict.message)
+    est = await asyncio.to_thread(sizing.estimate, img, height_cm, weight_kg)
+    return {
+        **est,
+        "top_label": sizing.label(est["top_size"]) if est.get("top_size") is not None else None,
+        "bottom_label": sizing.label(est["bottom_size"]) if est.get("bottom_size") is not None else None,
+    }
+
+
 @app.post("/api/tryon", status_code=202)
 async def tryon(
     request: Request,
@@ -211,6 +264,10 @@ async def tryon(
     seed: int = Form(42),
     lock_outside: bool = Form(False),
     live: bool = Form(False),
+    # Size check (optional): the shopper's height (and weight) and the sizes in stock, e.g. "S,M,L".
+    height_cm: Optional[float] = Form(None),
+    weight_kg: Optional[float] = Form(None),
+    sizes: str = Form(""),
 ) -> dict:
     # No free text reaches the model: the prompt is built only from what the server reads in the
     # photos (fixed colour and garment words). A typed "description" was a way to steer the
@@ -274,6 +331,10 @@ async def tryon(
         live=live,
         max_side=settings.live_max_side if live else None,
     )
+    if not live and height_cm and sizes:
+        req.fit = await asyncio.to_thread(_fit_for, person_img, garment_img, height_cm, weight_kg, sizes)
+        if req.fit:
+            req.fit_off = int(req.fit["off"])
     try:
         job = jobs.submit(engine, req)
     except QueueFull as exc:

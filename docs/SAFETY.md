@@ -32,6 +32,7 @@ A result that fails is generated once more. If it fails again, it is deleted and
 - The result is handed out once (`GET /api/jobs/{id}/result`) and deleted the moment it is
   downloaded. If it is never collected, it is deleted after 2 minutes (`TRYON_RESULT_TTL_S`).
 - No database, no disk, no bucket on the server side.
+- Height and weight, for the size check, are used in memory for that request and never stored or logged. The server logs only size letters ("needs M, shown in XS").
 - Exception, developer machines only: `TRYON_DEBUG_DIR` writes every photo to disk for tuning,
   and the server logs a warning when it is on. It must never be set in production.
 

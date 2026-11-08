@@ -110,6 +110,29 @@ Deleting a job also stops its generation on the GPU.
 
 ---
 
+## F. Size check (Photo mode)
+
+**14. Estimate the shopper's size** (`server/app/sizing.py`)
+- In: the photo, the shopper's **height** (required) and **weight** (optional). Both stay in memory and are never stored or logged.
+- The height gives the scale, pixels per cm:
+  - head to feet in view: high confidence;
+  - feet cut off: the torso is the ruler (shoulder to hip joints ≈ 0.28 of height);
+  - no hips either: the head is the ruler.
+- **Frame from the skeleton:** chest ≈ 2.6 × the shoulder-joint span + 8 cm, waist ≈ 4.1 × the hip-joint span. Clothes and arm poses don't change these.
+- **Fullness from the weight**, when given: a body-mass estimate counts for most of the result (75% of the chest).
+- Out: chest and waist in cm, and a size on the chart XS < 88 < S < 96 < M < 104 < L < 112 < XL < 120 cm chest (waist: 70 / 76 / 82 / 88 / 96). Bigger than XL is told as "XL + 1", "XL + 2"… The confidence is high, medium, rough or low.
+
+**15. Compare with the sizes in stock** (`sizing.verdict`, the same rule in `web/src/fit.ts`)
+- The size worn is your size if it's in stock, otherwise the closest one sold.
+- Verdicts: **Fits**, **A little tight/loose** (your size is out), **Snug** / **A bit big** (one size off at the edge of the range), **Too small** / **Too big** (two or more off).
+
+**16. Draw the fit**
+- The try-on is drawn in the size you'd actually get.
+- One to three sizes off adds a fixed sentence at the **start** of the prompt: tight with strain lines and short sleeves, or baggy with dropped shoulders and long sleeves.
+- Loose sizes get more room in the mask and a longer hem.
+- Tight looks always keep the body fully covered, and all three safety checks still apply.
+- If a bad-fit look is refused twice, it's drawn once more in the shopper's own size and labelled as such.
+
 ## Two extra pieces
 
 - **One look at a time:** the website sends one job at a time and the server has a single GPU worker, which is why the other looks wait their turn.

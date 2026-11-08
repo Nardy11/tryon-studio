@@ -121,7 +121,11 @@ def split_people(labels: np.ndarray) -> list[np.ndarray]:
 
 
 def agnostic_mask(
-    labels: np.ndarray, category: Category, top_length: float | None = None, top_hem_frac: float | None = None
+    labels: np.ndarray,
+    category: Category,
+    top_length: float | None = None,
+    top_hem_frac: float | None = None,
+    fit_off: int = 0,
 ) -> Image.Image:
     """White = area the try-on model may repaint. Built per person, then combined.
 
@@ -132,12 +136,16 @@ def agnostic_mask(
     region = np.zeros(labels.shape, dtype=bool)
     for band in split_people(labels):
         own = np.where(band, labels, BG)  # this person only; everyone else counts as background
-        region |= _agnostic_one(own, category, top_length, top_hem_frac) & band
+        region |= _agnostic_one(own, category, top_length, top_hem_frac, fit_off) & band
     return Image.fromarray((region * 255).astype(np.uint8), mode="L")
 
 
 def _agnostic_one(
-    labels: np.ndarray, category: Category, top_length: float | None = None, top_hem_frac: float | None = None
+    labels: np.ndarray,
+    category: Category,
+    top_length: float | None = None,
+    top_hem_frac: float | None = None,
+    fit_off: int = 0,
 ) -> np.ndarray:
     """The mask for one person. Face, hair, hands and anything they hold stay black."""
     h, w = labels.shape
@@ -153,7 +161,8 @@ def _agnostic_one(
     # Only the clothing (and arms) plus a thin margin. No filled bounding box: in a busy photo the
     # box swallows bags, phones and the arm's position, and the model redraws them (a held bag
     # vanished and the arm moved). A wide margin also makes the new garment wider than the body.
-    region = _dilate(core, max(2, unit // 3))
+    # A garment shown too big (size check) needs room to hang loose around the body.
+    region = _dilate(core, max(2, unit // 3) + max(0, fit_off) * unit)
     if category in ("lower", "dress"):
         # Bottoms are the opposite: the photo often shows skinny jeans or leggings, and the new
         # garment may be wide-leg. Hugging the legs makes the model copy their shape and colour,

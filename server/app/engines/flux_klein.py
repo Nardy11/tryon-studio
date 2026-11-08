@@ -50,6 +50,31 @@ MODEST = (
 )
 
 
+# Size check (app/sizing.py): the garment drawn in the closest size the shopper could buy. Fixed
+# words chosen by an integer; tight looks never show more skin (the hem stays over the waistband).
+_COVERED = " The hem still covers the waistband and the body stays fully covered."
+# Said first in the prompt, in visible terms: the model otherwise copies the outfit photo's fit.
+FIT = {
+    -1: "FIT: this outfit is one size too small for this person. It sits snug and close to the body: the fabric is"
+        " pulled smooth across the chest, back and thighs, and the sleeves are slightly short." + _COVERED,
+    -2: "FIT: this outfit is two sizes too small for this person, and it must look clearly too tight. The fabric is"
+        " pulled taut with horizontal strain lines across the chest and stomach, the buttons gape, the shirt clings to"
+        " the body, the sleeves end above the wrists, and the trousers are tight on the thighs and short at the"
+        " ankles." + _COVERED,
+    -3: "FIT: this outfit is three sizes too small for this person, and it must look far too tight. The fabric is"
+        " stretched to its limit with deep strain lines everywhere, the buttons pull open, the sleeves stop well above"
+        " the wrists, and the trousers are skin-tight and well above the ankles." + _COVERED,
+    1: "FIT: this outfit is one size too big for this person. It sits relaxed and roomy, with soft folds and slightly"
+       " long sleeves.",
+    2: "FIT: this outfit is two sizes too big for this person, and it must look clearly oversized. The fabric is loose"
+       " and billowing with deep folds, the shoulder seams hang far down the upper arms, the sleeves cover half the"
+       " hands, the top hangs well past the hips, and the trousers are wide and bunch up over the shoes.",
+    3: "FIT: this outfit is three sizes too big for this person, and it must look far too big. It hangs off the body"
+       " like a borrowed outfit: huge folds, the shoulder seams near the elbows, sleeves covering the hands, the top"
+       " down to mid-thigh, and the trousers pooling over the shoes.",
+}
+
+
 def build_prompt(req: TryOnRequest, has_back: bool, worn: bool = False, keep: str = "") -> str:
     import re
 
@@ -78,8 +103,10 @@ def build_prompt(req: TryOnRequest, has_back: bool, worn: bool = False, keep: st
             f" each in exactly its colour from image 2, none left out and none merged into another:"
             f" {checklist_prompt(req.layers)}."
         )
+    fit = FIT.get(max(-3, min(3, req.fit_off)), "")
     return (
-        f"Virtual try-on. Replace the {region} the person in image 1 is wearing with the {what} shown in image 2.{source}{pieces}"
+        (fit + " " if fit else "")
+        + f"Virtual try-on. Replace the {region} the person in image 1 is wearing with the {what} shown in image 2.{source}{pieces}"
         f" Match the garment in image 2 exactly: colour, fabric, knit or weave texture, ribbing, cuffs, hem, pattern, print,"
         f" logo placement, collar, sleeves, length, and any layer showing under it (for example a T-shirt hem)."
         f" It fits the person's body and pose naturally, with realistic folds, seams and shadows that match the lighting of image 1."
@@ -177,7 +204,7 @@ class FluxKleinEngine(Engine):
         from .crop import _focus_box
 
         full_labels = parser.labels(full)
-        mask_full = agnostic_mask(full_labels, req.category, req.top_length, req.top_hem_frac)
+        mask_full = agnostic_mask(full_labels, req.category, req.top_length, req.top_hem_frac, req.fit_off)
         # The crop must hold the whole head. Cut through the face (the clothes start at the neck,
         # so their box + margin ends mid-face), Klein redraws a person whose head is cut off and
         # recomposes the picture: the body moved 60 px sideways, so the user's real head, put

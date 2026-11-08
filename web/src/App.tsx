@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { api, setServer, API, type Category, type EngineInfo, type Health, type OutfitAnalysis, type PhotoCheck, type View } from './api';
+import { api, setServer, API, type Category, type EngineInfo, type Health, type OutfitAnalysis, type PhotoCheck, type SizeEstimate, type View } from './api';
+import { SIZES, neededSize, verdict as fitVerdict, type Fit } from './fit';
+import { FitBadge } from './components/FitBadge';
+import { SizeChips } from './components/SizeChips';
 import { PhotoSlot } from './components/PhotoSlot';
 import { LiveCamera } from './components/LiveCamera';
 import { Mirror } from './components/Mirror';
@@ -32,6 +35,8 @@ export type Run = {
   position?: number | null;
   runSeconds?: number | null;
   checklist?: { name: string; ok: boolean }[];
+  /** Size check for this look, from the server (size letters only). */
+  fit?: { verdict: string; needed: string | null; worn: string | null; off: number; drawn_in_own_size?: boolean } | null;
   loadSeconds?: number;
   startedAt: number;
 };
@@ -47,6 +52,8 @@ type Outfit = {
   analysis?: OutfitAnalysis | null;
   /** The user picked the type themselves: the server's suggestion no longer overrides it. */
   typeChosen?: boolean;
+  /** Sizes in stock (XS=0 … XL=4). Empty: no size check for this outfit. */
+  sizes: number[];
 };
 
 /** One GPU makes one look at a time; more outfits than this would mean minutes of waiting. */
@@ -56,6 +63,11 @@ let outfitSeq = 0;
 export default function App() {
   const [photos, setPhotos] = useState<Partial<Record<View, Photo>>>({});
   const [checks, setChecks] = useState<Partial<Record<View, PhotoCheck>>>({});
+  // Size check. Height and weight stay in this page's memory only: never stored, never logged.
+  const [heightCm, setHeightCm] = useState('');
+  const [weightKg, setWeightKg] = useState('');
+  const [sizeEst, setSizeEst] = useState<SizeEstimate | null>(null);
+  const [sizeError, setSizeError] = useState('');
   const [outfits, setOutfits] = useState<Outfit[]>([]);
   const [editing, setEditing] = useState<string | null>(null);
   const [lockOutside, setLockOutside] = useState(false);
@@ -133,7 +145,7 @@ export default function App() {
             if (job.status === 'done') {
               const blob = await api.result(job.id);
               forms.current.delete(r.key);
-              patch(r.key, { ...base, status: 'done', url: URL.createObjectURL(blob), checklist: job.checklist });
+              patch(r.key, { ...base, status: 'done', url: URL.createObjectURL(blob), checklist: job.checklist, fit: job.fit ?? null });
               api.forget(job.id); // the server drops the photos and result now
             } else if (job.status === 'error') {
               forms.current.delete(r.key);
@@ -178,6 +190,34 @@ export default function App() {
       });
   }, [runs, tick, patch]);
 
+  // ---- size check ----
+  const h = Number(heightCm);
+  const w = Number(weightKg);
+  const bodyOk = !!heightCm && h >= 120 && h <= 220;
+  const weightOk = !weightKg || (w >= 30 && w <= 250);
+  useEffect(() => {
+    setSizeEst(null);
+    setSizeError('');
+    const file = photos.front?.file;
+    if (!file || !heightCm) return;
+    if (!bodyOk) return setSizeError('Enter a height between 120 and 220 cm.');
+    if (!weightOk) return setSizeError('Enter a weight between 30 and 250 kg, or leave it empty.');
+    const t = setTimeout(() => {
+      api
+        .size(file, h, weightKg ? w : undefined)
+        .then(setSizeEst)
+        .catch((e: Error) => setSizeError(e.message));
+    }, 600);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [photos.front?.file, heightCm, weightKg]);
+  const fitFor = (o: Outfit): Fit | null => {
+    if (!sizeEst || sizeEst.confidence === 'none' || !o.sizes.length) return null;
+    const parts = new Set((o.analysis?.layers ?? []).map((l) => l.part));
+    if (!parts.size) parts.add(o.category === 'lower' ? 'lower' : o.category === 'dress' ? 'dress' : 'upper');
+    return fitVerdict(neededSize(sizeEst, parts), o.sizes);
+  };
+
   // ---- form helpers ----
   const setPhoto = (view: View, file: File | null) => {
     setChecks((c) => {
@@ -214,6 +254,7 @@ export default function App() {
       back: null,
       category,
       description: '',
+      sizes: [],
     }));
     setOutfits((os) => [...os, ...added]);
     setEditing(added[0].id);
@@ -319,6 +360,12 @@ export default function App() {
           form.append('view', view);
           form.append('seed', String(seed));
           form.append('lock_outside', String(lockOutside));
+          // Size check: the server works out the size to draw (it doesn't trust the page's verdict).
+          if (bodyOk && outfit.sizes.length) {
+            form.append('height_cm', heightCm);
+            if (weightOk && weightKg) form.append('weight_kg', weightKg);
+            form.append('sizes', outfit.sizes.map((i) => SIZES[i]).join(','));
+          }
           forms.current.set(key, form);
         }
     setRuns(fresh);
@@ -412,6 +459,28 @@ export default function App() {
                 ))}
               </div>
               )}
+              {mode === 'photo' && (
+                <div className="body-fields">
+                  <label className="field" htmlFor="height">
+                    <span className="field-label">Height (cm)</span>
+                    <input id="height" type="number" inputMode="numeric" min={120} max={220} placeholder="e.g. 170" value={heightCm} onChange={(e) => setHeightCm(e.target.value)} />
+                  </label>
+                  <label className="field" htmlFor="weight">
+                    <span className="field-label">Weight (kg, optional)</span>
+                    <input id="weight" type="number" inputMode="numeric" min={30} max={250} placeholder="e.g. 65" value={weightKg} onChange={(e) => setWeightKg(e.target.value)} />
+                  </label>
+                  <p className="pieces-note body-note">
+                    Used only to check sizes, never stored.{' '}
+                    {sizeError
+                      ? sizeError
+                      : sizeEst && sizeEst.confidence !== 'none'
+                        ? `You: about ${sizeEst.top_label ?? '?'} on top${sizeEst.bottom_label ? `, ${sizeEst.bottom_label} for bottoms` : ''}${sizeEst.chest_cm ? ` (chest ~${sizeEst.chest_cm} cm${sizeEst.waist_cm ? `, waist ~${sizeEst.waist_cm} cm` : ''})` : ''}.${!weightKg ? ' Add your weight for a more reliable size.' : ''}`
+                        : sizeEst?.reason
+                          ? sizeReason(sizeEst.reason)
+                          : ''}
+                  </p>
+                </div>
+              )}
               {mode === 'photo' && <PhotoAdvice checks={checks} needLegs={outfits.some((o) => o.category !== 'upper')} />}
             </li>
 
@@ -455,6 +524,15 @@ export default function App() {
                   </div>
                   )}
                   {mode === 'photo' && <Pieces outfit={editingOutfit} />}
+                  {mode === 'photo' && (
+                    <>
+                      <SizeChips value={editingOutfit.sizes} onChange={(v) => updateOutfit(editingOutfit.id, { sizes: v })} />
+                      {(() => {
+                        const f = fitFor(editingOutfit);
+                        return f ? <FitBadge fit={f} stock={editingOutfit.sizes} /> : null;
+                      })()}
+                    </>
+                  )}
                   <div className="back-slot">
                     <PhotoSlot
                       key={editingOutfit.id}
@@ -700,4 +778,17 @@ function ServerPill({ health, down }: { health: Health | null; down: boolean }) 
       {health.gpu.name.replace('NVIDIA GeForce ', '')} · {health.gpu.vram_total_gb} GB
     </span>
   );
+}
+
+/** Why the photo couldn't be measured, in words. */
+function sizeReason(reason: string): string {
+  switch (reason) {
+    case 'turned':
+      return 'Face the camera in your photo to check the size.';
+    case 'no_scale':
+    case 'no_head':
+      return 'Use a photo with your head and body in view to check the size.';
+    default:
+      return 'Your size couldn’t be measured from this photo. Try a front-facing, head-to-feet photo.';
+  }
 }

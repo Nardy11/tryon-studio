@@ -24,6 +24,21 @@ export type Job = {
   timings: { queued_s: number; model_load_s: number; run_s: number | null };
   /** Each piece of the outfit and whether it made it into the result. */
   checklist: { name: string; ok: boolean }[];
+  /** Size check: which size the look is drawn in and how it fits (size letters only). */
+  fit?: { verdict: string; needed: string | null; worn: string | null; off: number; drawn_in_own_size?: boolean } | null;
+};
+
+/** The shopper's estimated measurements and size (sizes as indexes: XS=0 … XL=4, 5 = XL + 1 …). */
+export type SizeEstimate = {
+  confidence: 'high' | 'medium' | 'rough' | 'low' | 'none';
+  method?: string;
+  reason?: string | null;
+  chest_cm?: number | null;
+  waist_cm?: number | null;
+  top_size: number | null;
+  bottom_size: number | null;
+  top_label?: string | null;
+  bottom_label?: string | null;
 };
 
 /** A photo the server's safety check refused (nudity, underwear or swimwear, a child). */
@@ -130,6 +145,14 @@ export const api = {
     const form = new FormData();
     form.append('garment', file);
     return fetch(`${API}/api/outfit-layer`, { method: 'POST', body: form }).then((r) => parse<OutfitLayer>(r));
+  },
+  /** Height (cm) and optional weight (kg): used in memory for this request only, never stored. */
+  size(person: File, heightCm: number, weightKg?: number) {
+    const form = new FormData();
+    form.append('person', person);
+    form.append('height_cm', String(heightCm));
+    if (weightKg) form.append('weight_kg', String(weightKg));
+    return fetch(`${API}/api/size`, { method: 'POST', body: form }).then((r) => parse<SizeEstimate>(r));
   },
   analyseOutfit(file: File) {
     const form = new FormData();

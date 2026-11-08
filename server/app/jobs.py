@@ -47,6 +47,8 @@ class Job:
     error: Optional[str] = None
     # Each piece of the outfit and whether it made it into the result ({name, ok, share}).
     checklist: list = field(default_factory=list)
+    # Size verdict (size letters only), from the request.
+    fit: Optional[dict] = None
     cancel: threading.Event = field(default_factory=threading.Event)
 
     def public(self, position: Optional[int]) -> dict:
@@ -58,6 +60,7 @@ class Job:
             "position": position,
             "error": self.error,
             "checklist": [{"name": short_name(c["name"]), "ok": c["ok"]} for c in self.checklist],
+            "fit": self.fit,
             "timings": {
                 "queued_s": round((self.started or time.time()) - self.created, 2),
                 "model_load_s": round(self.load_s, 2),
@@ -121,7 +124,7 @@ class JobManager:
             waiting = sum(1 for j in self.jobs.values() if j.status in ("queued", "loading", "running"))
             if waiting >= settings.max_queue:
                 raise QueueFull("The queue is full. Try again in a minute.")
-            job = Job(id=uuid.uuid4().hex, engine=engine, view=req.view, request=req)
+            job = Job(id=uuid.uuid4().hex, engine=engine, view=req.view, request=req, fit=req.fit)
             self.jobs[job.id] = job
             self._order.append(job.id)
         self._q.put(job.id)
@@ -205,6 +208,8 @@ class JobManager:
                             y = sk.to_pixel(outfit.top_hem) if sk is not None else None
                             if y is not None:
                                 req.top_hem_frac = max(0.0, min(1.0, y / sk.height))
+                                if req.fit_off > 0:  # a size too big hangs longer
+                                    req.top_hem_frac = min(1.0, req.top_hem_frac + 0.04 * req.fit_off)
                                 log.info("job %s: top ends at body %.2f -> %.0f%% down the photo", job.id, outfit.top_hem, req.top_hem_frac * 100)
                     log.info("job %s: checklist %s (top length %s)", job.id, checklist_prompt(req.layers), req.top_length)
                 # Colour of each garment piece, measured on the original photo before any cut-out.
@@ -233,7 +238,13 @@ class JobManager:
                 # gets one more try with another seed (the photos already passed the quality and
                 # safety checks, so the model is the likely cause); then it is refused for good.
                 verdict = None
-                for attempt in range(1 if req.live else 2):
+                # A too-tight or too-loose look refused twice gets one more try in the shopper's own
+                # size, labelled as such (the safety checks always win over showing the bad fit).
+                for attempt in range(1 if req.live else (3 if req.fit_off else 2)):
+                    if attempt == 2:
+                        req.fit_off = 0
+                        if job.fit:
+                            job.fit = {**job.fit, "drawn_in_own_size": True}
                     if attempt:
                         req.seed += 1009
                         log.info("job %s: result refused (%s), generating once more", job.id, verdict.code)

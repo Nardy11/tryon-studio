@@ -40,6 +40,11 @@ class TryOnRequest:
     # Live mode: the result goes back as the new clothes only (transparent elsewhere), for the
     # page to keep on the person's moving camera image.
     live: bool = False
+    # Size check: how many sizes the garment shown is off this shopper's size (app/sizing.py).
+    # < 0 = drawn tight (all stocked sizes too small), > 0 = drawn loose (all too big).
+    fit_off: int = 0
+    # The size verdict for this look (size letters only; never height or weight).
+    fit: Optional[dict] = None
     # Longest side handed to the model for this request (None = settings.max_side).
     max_side: Optional[int] = None
     # Set when the job is cancelled; engines stop at the next diffusion step.
