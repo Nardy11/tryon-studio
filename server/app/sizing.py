@@ -43,13 +43,15 @@ def label(i: int) -> str:
 
 def size_of(cm: float, bounds: list[int]) -> tuple[int, bool]:
     """(size index, between two sizes). Between rounds up: better a little loose than tight."""
+    cm = float(cm)  # plain Python numbers only: numpy types can't be sent as JSON
     for i, b in enumerate(bounds):
         if cm < b:
-            return (i + 1 if b - cm <= NEAR_CM and i + 1 <= len(bounds) else i), b - cm <= NEAR_CM
+            near = bool(b - cm <= NEAR_CM)
+            return int(i + 1 if near and i + 1 <= len(bounds) else i), near
     over = cm - bounds[-1]
     i = len(bounds) + int(over // STEP_ABOVE)
-    edge = STEP_ABOVE - (over % STEP_ABOVE)
-    return (i + 1 if edge <= NEAR_CM else i), edge <= NEAR_CM
+    near = bool(STEP_ABOVE - (over % STEP_ABOVE) <= NEAR_CM)
+    return int(i + 1 if near else i), near
 
 
 def _ellipse(width: float, depth_ratio: float) -> float:
@@ -189,9 +191,9 @@ def _estimate(img: Image.Image, height_cm: float, weight_kg: Optional[float]) ->
         "confidence": confidence,
         "method": method,
         "reason": None,
-        "chest_cm": round(chest) if chest else None,
-        "waist_cm": round(waist) if waist else None,
-        "hip_cm": round(hip) if hip else None,
+        "chest_cm": int(round(float(chest))) if chest else None,
+        "waist_cm": int(round(float(waist))) if waist else None,
+        "hip_cm": int(round(float(hip))) if hip else None,
         "top_size": top[0],
         "top_between": top[1],
         "bottom_size": bottom[0],

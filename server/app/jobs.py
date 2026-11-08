@@ -208,8 +208,6 @@ class JobManager:
                             y = sk.to_pixel(outfit.top_hem) if sk is not None else None
                             if y is not None:
                                 req.top_hem_frac = max(0.0, min(1.0, y / sk.height))
-                                if req.fit_off > 0:  # a size too big hangs longer
-                                    req.top_hem_frac = min(1.0, req.top_hem_frac + 0.04 * req.fit_off)
                                 log.info("job %s: top ends at body %.2f -> %.0f%% down the photo", job.id, outfit.top_hem, req.top_hem_frac * 100)
                     log.info("job %s: checklist %s (top length %s)", job.id, checklist_prompt(req.layers), req.top_length)
                 # Colour of each garment piece, measured on the original photo before any cut-out.
@@ -269,6 +267,11 @@ class JobManager:
                             if score(check2) > score(check):
                                 out, check = out2, check2
                         job.checklist = check
+                    # Size check, pass 2: the same look redrawn tight or loose (only when off).
+                    if req.fit_off and hasattr(engine, "refit"):
+                        req.check_cancel()
+                        out = engine.refit(req, out)
+                        debug.save("after-refit", out)
                     # Models shift the garment's colour toward the scene's light (black -> brown in a
                     # sunset photo). Pull it back to the garment photo's colour, keeping folds and shading:
                     # per layer when the outfit was read as layers, else per body part.

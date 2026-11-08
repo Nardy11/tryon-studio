@@ -127,9 +127,10 @@ Deleting a job also stops its generation on the GPU.
 - Verdicts: **Fits**, **A little tight/loose** (your size is out), **Snug** / **A bit big** (one size off at the edge of the range), **Too small** / **Too big** (two or more off).
 
 **16. Draw the fit**
-- The try-on is drawn in the size you'd actually get.
-- One to three sizes off adds a fixed sentence at the **start** of the prompt: tight with strain lines and short sleeves, or baggy with dropped shoulders and long sleeves.
-- Loose sizes get more room in the mask and a longer hem.
+- The try-on is drawn in the size you'd actually get, in two passes:
+  1. Klein draws the outfit normally, as faithfully as ever.
+  2. When the size is off, the finished look is edited with no outfit photo to copy, **once per size off**: tighter (strain lines, short sleeves) or looser (dropped shoulders, long sleeves, wide legs).
+- Only the clothes area of the edit is kept, with more room the looser it gets.
 - Tight looks always keep the body fully covered, and all three safety checks still apply.
 - If a bad-fit look is refused twice, it's drawn once more in the shopper's own size and labelled as such.
 

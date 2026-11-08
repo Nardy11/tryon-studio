@@ -52,26 +52,32 @@ MODEST = (
 
 # Size check (app/sizing.py): the garment drawn in the closest size the shopper could buy. Fixed
 # words chosen by an integer; tight looks never show more skin (the hem stays over the waistband).
+# Size check, pass 2 (app/sizing.py): an edit of the finished look with no outfit photo to copy
+# from, so the model follows the fit instead of the photo. Fixed words chosen by an integer; tight
+# looks keep the body covered.
+_KEEP = (
+    " Keep exactly the same garments: the same colours, fabric, pattern, pockets, buttons and every piece."
+    " Keep the face, hair, hands, body, pose, background and lighting exactly the same."
+)
 _COVERED = " The hem still covers the waistband and the body stays fully covered."
-# Said first in the prompt, in visible terms: the model otherwise copies the outfit photo's fit.
-FIT = {
-    -1: "FIT: this outfit is one size too small for this person. It sits snug and close to the body: the fabric is"
-        " pulled smooth across the chest, back and thighs, and the sleeves are slightly short." + _COVERED,
-    -2: "FIT: this outfit is two sizes too small for this person, and it must look clearly too tight. The fabric is"
-        " pulled taut with horizontal strain lines across the chest and stomach, the buttons gape, the shirt clings to"
-        " the body, the sleeves end above the wrists, and the trousers are tight on the thighs and short at the"
-        " ankles." + _COVERED,
-    -3: "FIT: this outfit is three sizes too small for this person, and it must look far too tight. The fabric is"
-        " stretched to its limit with deep strain lines everywhere, the buttons pull open, the sleeves stop well above"
-        " the wrists, and the trousers are skin-tight and well above the ankles." + _COVERED,
-    1: "FIT: this outfit is one size too big for this person. It sits relaxed and roomy, with soft folds and slightly"
-       " long sleeves.",
-    2: "FIT: this outfit is two sizes too big for this person, and it must look clearly oversized. The fabric is loose"
-       " and billowing with deep folds, the shoulder seams hang far down the upper arms, the sleeves cover half the"
-       " hands, the top hangs well past the hips, and the trousers are wide and bunch up over the shoes.",
-    3: "FIT: this outfit is three sizes too big for this person, and it must look far too big. It hangs off the body"
-       " like a borrowed outfit: huge folds, the shoulder seams near the elbows, sleeves covering the hands, the top"
-       " down to mid-thigh, and the trousers pooling over the shoes.",
+REFIT = {
+    -1: "Make the clothes this person is wearing one size too small for them: snug and close to the body, the fabric"
+        " pulled smooth across the chest, back and thighs, the sleeves slightly short." + _COVERED + _KEEP,
+    -2: "Make the clothes this person is wearing two sizes too small for them, clearly too tight: the fabric pulled"
+        " taut with horizontal strain lines across the chest and stomach, the buttons gaping, the shirt clinging to"
+        " the body, the sleeves ending well above the wrists, the trousers tight on the thighs and short at the"
+        " ankles." + _COVERED + _KEEP,
+    -3: "Make the clothes this person is wearing three sizes too small for them, far too tight: the fabric stretched"
+        " to its limit with deep strain lines everywhere, the buttons pulling open, the sleeves stopping halfway down"
+        " the forearms, the trousers skin-tight and far above the ankles." + _COVERED + _KEEP,
+    1: "Make the clothes this person is wearing one size too big for them: relaxed and roomy, with soft folds and"
+       " slightly long sleeves." + _KEEP,
+    2: "Make the clothes this person is wearing two sizes too big for them, clearly oversized: loose billowing fabric"
+       " with deep folds, the shoulder seams hanging far down the upper arms, the sleeves covering half the hands,"
+       " the top hanging well past the hips, the trousers wide and bunching up over the shoes." + _KEEP,
+    3: "Make the clothes this person is wearing three sizes too big for them, far too big, like a borrowed outfit:"
+       " huge folds, the shoulder seams near the elbows, the sleeves covering the hands, the top down to mid-thigh,"
+       " the trousers pooling over the shoes." + _KEEP,
 }
 
 
@@ -103,10 +109,8 @@ def build_prompt(req: TryOnRequest, has_back: bool, worn: bool = False, keep: st
             f" each in exactly its colour from image 2, none left out and none merged into another:"
             f" {checklist_prompt(req.layers)}."
         )
-    fit = FIT.get(max(-3, min(3, req.fit_off)), "")
     return (
-        (fit + " " if fit else "")
-        + f"Virtual try-on. Replace the {region} the person in image 1 is wearing with the {what} shown in image 2.{source}{pieces}"
+        f"Virtual try-on. Replace the {region} the person in image 1 is wearing with the {what} shown in image 2.{source}{pieces}"
         f" Match the garment in image 2 exactly: colour, fabric, knit or weave texture, ribbing, cuffs, hem, pattern, print,"
         f" logo placement, collar, sleeves, length, and any layer showing under it (for example a T-shirt hem)."
         f" It fits the person's body and pose naturally, with realistic folds, seams and shadows that match the lighting of image 1."
@@ -194,6 +198,9 @@ class FluxKleinEngine(Engine):
         torch.cuda.empty_cache()
 
     @torch.inference_mode()
+    def refit(self, req: TryOnRequest, img: Image.Image) -> Image.Image:
+        return _refit(self, req, img)
+
     def run(self, req: TryOnRequest) -> Image.Image:
         self.load()
         full = req.person
@@ -204,7 +211,7 @@ class FluxKleinEngine(Engine):
         from .crop import _focus_box
 
         full_labels = parser.labels(full)
-        mask_full = agnostic_mask(full_labels, req.category, req.top_length, req.top_hem_frac, req.fit_off)
+        mask_full = agnostic_mask(full_labels, req.category, req.top_length, req.top_hem_frac)
         # The crop must hold the whole head. Cut through the face (the clothes start at the neck,
         # so their box + margin ends mid-face), Klein redraws a person whose head is cut off and
         # recomposes the picture: the body moved 60 px sideways, so the user's real head, put
@@ -330,6 +337,49 @@ class FluxKleinEngine(Engine):
         result.paste(out, crop_box[:2], alpha)
         log.info("klein paste-back took %.1f s", _t.time() - t0)
         return result
+
+
+def _refit(engine: "FluxKleinEngine", req: TryOnRequest, img: Image.Image) -> Image.Image:
+    """Pass 2 of the size check: redraw the finished look's clothes tighter or looser, then keep
+    the new pixels only in the clothes area (face, hands and background stay as they were)."""
+    import numpy as np
+
+    from ..preprocess.parsing import BELT, DRESS, PANTS, SCARF, SKIRT, UPPER, _dilate, parser
+
+    off = max(-3, min(3, req.fit_off))
+    if not off:
+        return img
+    engine.load()
+    w, h = fit_size(img.size, req.max_side or settings.max_side, multiple=16)
+    out = img.resize((w, h), Image.LANCZOS)
+    # One edit per size off, each building on the last: a single edit only nudges the fit, and
+    # repeated edits compound into a fit you can see at a glance.
+    step = REFIT[2 if off > 0 else -2] if abs(off) >= 2 else REFIT[off]
+    for k in range(abs(off)):
+        req.check_cancel()
+        out = engine._pipe(
+            image=[out],
+            prompt=step,
+            width=w,
+            height=h,
+            num_inference_steps=4,
+            guidance_scale=1.0,
+            generator=torch.Generator(device="cpu").manual_seed(req.seed + 77 + k),
+            callback_on_step_end=_stop_if_cancelled(req),
+        ).images[0]
+    out = out.resize(img.size, Image.LANCZOS)
+    from .. import debug
+
+    debug.save("refit-raw", out)
+    ids = [UPPER, SKIRT, PANTS, DRESS, BELT, SCARF]
+    clothes = np.isin(parser.labels(img), ids) | np.isin(parser.labels(out), ids)
+    # Loose clothes spread past the old outline: more room the bigger they are.
+    grow = max(3, int(0.012 * max(img.size))) * (1 + max(0, off))
+    alpha = Image.fromarray((_dilate(clothes, grow) * 255).astype(np.uint8), "L").filter(ImageFilter.GaussianBlur(3))
+    result = img.copy()
+    result.paste(out, (0, 0), alpha)
+    log.info("klein: size pass, redrawn %d size(s) %s", abs(off), "too small" if off < 0 else "too big")
+    return result
 
 
 def _fit(img: Image.Image, max_side: int) -> Image.Image:
