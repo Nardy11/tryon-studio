@@ -132,6 +132,28 @@ async def check_photo(person: UploadFile = File(...)) -> dict:
     return {"blocked": None, "retake": None, "warnings": warnings, "visible": {"arms": arms >= 0.002, "legs": legs >= 0.03}}
 
 
+@app.post("/api/outfit-layer")
+async def outfit_layer_endpoint(garment: UploadFile = File(...)) -> dict:
+    """Live filter: the outfit's clothes cut out, and the pose they were worn in. The browser lays
+    them onto the camera image; no photo of the person is ever sent."""
+    import asyncio
+
+    from .live import outfit_layer
+
+    img = await _read(garment, "garment", True)
+    verdict = await asyncio.to_thread(safety.check_outfit, img)
+    if not verdict.ok:
+        return {"blocked": verdict.public(), "retake": None}
+    retake = await asyncio.to_thread(quality.check_outfit, img)
+    if retake is not None:
+        return {"blocked": None, "retake": retake.public()}
+    layer = await asyncio.to_thread(outfit_layer, img)
+    if layer is None:
+        r = quality.Retake("no_garment", "We can't make out the clothes in this photo. Please upload another photo of the outfit.")
+        return {"blocked": None, "retake": r.public()}
+    return {"blocked": None, "retake": None, **layer}
+
+
 @app.post("/api/analyse-outfit")
 async def analyse_outfit_endpoint(garment: UploadFile = File(...)) -> dict:
     """Read an outfit photo as a checklist of pieces (coat, top under it, T-shirt hem, trousers)

@@ -436,3 +436,8 @@ input[type='text'], input[type='number'] {
 .server-box { display: grid; gap: 8px; }
 .server-form { display: flex; gap: 8px; flex-wrap: wrap; }
 .server-form input { flex: 1 1 220px; min-width: 0; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); font: inherit; }
+
+/* Live mirror: a straight frame, and the valance above the picture, not over it (it hid the head). */
+.mirror.live-mirror { border-radius: 18px; padding-top: 40px; background: #3a0610; }
+.mirror.live-mirror .valance { height: 34px; min-height: 0; }
+.mirror.live-mirror .live-canvas { border-radius: 0 0 12px 12px; }

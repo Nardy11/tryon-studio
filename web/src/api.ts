@@ -47,6 +47,16 @@ export type OutfitAnalysis = {
   shoes: string | null;
 };
 
+/** Live filter: an outfit's clothes cut out, and the pose (33 landmarks [x, y, visibility]) they were worn in. */
+export type OutfitLayer = {
+  blocked?: Blocked | null;
+  retake?: Retake | null;
+  width?: number;
+  height?: number;
+  landmarks?: [number, number, number][];
+  image?: string;
+};
+
 export type Health = {
   ok: boolean;
   gpu: { name: string; vram_total_gb: number; vram_free_gb: number } | null;
@@ -106,6 +116,11 @@ export const api = {
     const form = new FormData();
     form.append('person', file);
     return fetch(`${API}/api/check-photo`, { method: 'POST', body: form }).then((r) => parse<PhotoCheck>(r));
+  },
+  outfitLayer(file: File) {
+    const form = new FormData();
+    form.append('garment', file);
+    return fetch(`${API}/api/outfit-layer`, { method: 'POST', body: form }).then((r) => parse<OutfitLayer>(r));
   },
   analyseOutfit(file: File) {
     const form = new FormData();

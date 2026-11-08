@@ -76,11 +76,8 @@ export default function App() {
   const [tick, setTick] = useState(0);
   const [activeOutfit, setActiveOutfit] = useState<string | null>(null);
   const [gestures, setGestures] = useState(false);
-  // Photo: upload photos. Live: the camera takes the photo when you hold still.
+  // Photo: upload photos, the model makes the look. Live: a real-time filter on the camera.
   const [mode, setMode] = useState<'photo' | 'live'>('photo');
-  const liveStart = useRef(false);
-  // Bumped when the server turned a live photo down: the camera gets ready for another one.
-  const [liveRetry, setLiveRetry] = useState(0);
   const [activeView, setActiveView] = useState<View>('front');
   const [activeEngine, setActiveEngine] = useState<string>('flux-klein');
   const [formError, setFormError] = useState<string | null>(null);
@@ -319,8 +316,6 @@ export default function App() {
           form.append('view', view);
           form.append('seed', String(seed));
           form.append('lock_outside', String(lockOutside));
-          // Live mode: the server sends back the new clothes only, to keep on the moving camera image.
-          if (mode === 'live') form.append('live', 'true');
           forms.current.set(key, form);
         }
     setRuns(fresh);
@@ -334,34 +329,9 @@ export default function App() {
     if (m === mode) return;
     setMode(m);
     setFormError(null);
-    // Live mode has one photo, the one the camera takes; side and back are photo mode only.
-    if (m === 'live') {
-      setPhoto('side', null);
-      setPhoto('back', null);
-    }
   };
-  const onLiveCapture = (file: File) => {
-    setPhoto('side', null);
-    setPhoto('back', null);
-    setPhoto('front', file);
-    liveStart.current = true; // start as soon as the server has checked this frame
-  };
-  useEffect(() => {
-    if (!liveStart.current || mode !== 'live') return;
-    const c = checks.front;
-    if (!c || !photos.front) return;
-    liveStart.current = false;
-    if (c.blocked || c.retake) {
-      setLiveRetry((n) => n + 1);
-      return setFormError(liveMessage(c.blocked?.code ?? c.retake!.code, (c.blocked ?? c.retake)!.message));
-    }
-    setFormError(null);
-    if (!outfits.length) return setFormError('Add at least one outfit, then hold still again.');
-    start();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [checks.front, photos.front, mode]);
-
-  const runOutfits = outfits.filter((o) => runs.some((r) => r.outfitId === o.id));
+  // Live mode needs no run: every outfit added can be shown at once.
+  const runOutfits = mode === 'live' ? outfits : outfits.filter((o) => runs.some((r) => r.outfitId === o.id));
   const outfitIdx = Math.max(0, runOutfits.findIndex((o) => o.id === activeOutfit));
   const shownOutfit = runOutfits[outfitIdx];
   const viewRuns = runs.filter((r) => r.outfitId === shownOutfit?.id && r.view === activeView);
@@ -404,7 +374,7 @@ export default function App() {
                 <p>
                   {mode === 'photo'
                     ? 'One photo is enough. Add your side and back to see the outfit from every angle.'
-                    : 'Stand in front of the camera. One photo is taken once, then the outfit stays on you while you move.'}
+                    : 'A live filter: the outfit appears on you in the camera and follows you. No photo is taken.'}
                 </p>
               </div>
               <div className="segmented" role="radiogroup" aria-label="How to add yourself">
@@ -422,7 +392,7 @@ export default function App() {
                 ))}
               </div>
               {mode === 'live' ? (
-                <p className="live-hint">The camera is in the mirror. One photo is taken the first time you hold still.</p>
+                <p className="live-hint">The camera is in the mirror. Whatever part of you is in view gets dressed.</p>
               ) : (
               <div className="slots">
                 {VIEWS.map((v) => (
@@ -460,6 +430,7 @@ export default function App() {
                       Remove outfit
                     </button>
                   </div>
+                  {mode === 'photo' && (
                   <div className="field">
                     <span className="field-label" id="cat-label">Type</span>
                     <div className="segmented" role="radiogroup" aria-labelledby="cat-label">
@@ -477,7 +448,8 @@ export default function App() {
                       ))}
                     </div>
                   </div>
-                  <Pieces outfit={editingOutfit} />
+                  )}
+                  {mode === 'photo' && <Pieces outfit={editingOutfit} />}
                   <div className="back-slot">
                     <PhotoSlot
                       key={editingOutfit.id}
@@ -532,12 +504,14 @@ export default function App() {
             </li>
           </ol>
 
-          <div className="run-bar">
-            {formError && <p className="form-error" role="alert">{formError}</p>}
-            <button type="button" className="primary" onClick={start} disabled={busy}>
-              {busy ? 'Trying it on…' : 'Try it on'}
-            </button>
-          </div>
+          {mode === 'photo' && (
+            <div className="run-bar">
+              {formError && <p className="form-error" role="alert">{formError}</p>}
+              <button type="button" className="primary" onClick={start} disabled={busy}>
+                {busy ? 'Trying it on…' : 'Try it on'}
+              </button>
+            </div>
+          )}
         </section>
 
         <section className="stage" aria-label="Result">
@@ -609,10 +583,7 @@ export default function App() {
 
           {mode === 'live' ? (
             <LiveCamera
-              onCapture={onLiveCapture}
-              busy={busy}
-              retryKey={liveRetry}
-              run={current}
+              outfit={shownOutfit ? { id: shownOutfit.id, file: shownOutfit.front.file } : undefined}
               title={shownOutfit && runOutfits.length > 1 ? `Outfit ${outfitIdx + 1} of ${runOutfits.length}` : undefined}
             />
           ) : (
@@ -724,30 +695,4 @@ function ServerPill({ health, down }: { health: Health | null; down: boolean }) 
       {health.gpu.name.replace('NVIDIA GeForce ', '')} · {health.gpu.vram_total_gb} GB
     </span>
   );
-}
-
-/** A refused live photo, said in camera terms ("upload another photo" makes no sense here). */
-function liveMessage(code: string, message: string): string {
-  switch (code) {
-    case 'blurry':
-    case 'unclear':
-      return 'The camera picture wasn’t clear enough. Hold still in good light and it takes another one.';
-    case 'too_dark':
-      return 'It’s too dark for the camera. Turn on a light, then hold still for another picture.';
-    case 'too_bright':
-      return 'There’s too much light behind or on you. Move out of direct light, then hold still.';
-    case 'too_far':
-      return 'You’re too far from the camera. Step a little closer, then hold still.';
-    case 'no_face':
-    case 'no_person':
-      return 'The camera can’t see you clearly. Face the camera, then hold still.';
-    case 'no_body':
-      return 'The camera can’t see your shoulders and hips. Step back so you fit from head to feet.';
-    case 'no_legs':
-      return 'Your legs aren’t in the picture. Step back so you fit from head to feet.';
-    case 'several_people':
-      return 'There’s more than one person in front of the camera. Only you, then hold still.';
-    default:
-      return message.replace('Please upload another photo', 'Hold still for another picture');
-  }
 }

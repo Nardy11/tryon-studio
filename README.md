@@ -29,7 +29,7 @@ nothing else.
 
 - 🎭 **A stage, not a form.** Red curtains close while your look is made, then lift and part to reveal it. Pull the gold rope to compare with your own photo.
 - 👗 **Several outfits at once.** They're made one after another, and you flip through them with **Next** or **a swipe of your hand** (hand tracking runs in your browser).
-- 📷 **Photo or Live camera.** Upload photos, or stand in front of the camera: one picture is taken once, then the outfit **stays on you while you move**.
+- 📷 **Photo or Live camera.** Upload photos and the model makes a realistic look, or use **Live camera**: a real-time filter that dresses you as you move, with no photo taken. Whatever part of you is in view gets dressed.
 - 🧵 **Reads the outfit like a stylist.** Jacket, top underneath, trousers; each piece's colour; where each hem ends on the body. That checklist goes to the model, and every result is checked against it.
 - 🛡️ **Safe by design.** Every photo and every result is checked. Nothing revealing is ever made or shown, and photos are never stored.
 - 🖥️ **Your GPU, no API bill.** The model runs on your own machine. No tokens, no per-image fees, no photos sent to anyone.
@@ -129,7 +129,7 @@ it's gone after 2 minutes.
  │ React + Vite             │                  │  ├─ safety + quality (CPU)         │
  │  ├─ curtains & mirror    │ ◄─────────────── │  ├─ SegFormer · MediaPipe Pose     │
  │  ├─ hand gestures (MP)   │   result, once   │  ├─ outfit reader (OpenCV)         │
- │  └─ live body tracking   │                  │  └─ FLUX.2 Klein 4B (4-bit)        │
+ │  └─ live filter (MP Pose)│                  │  └─ FLUX.2 Klein 4B (4-bit)        │
  └──────────────────────────┘                  └───────────────────────────────────┘
 ```
 
