@@ -124,6 +124,11 @@ def build_prompt(req: TryOnRequest, has_back: bool, worn: bool = False, keep: st
             if keep
             else ""
         )
+        + (
+            f" The person also changes into the {req.shoes} from image 2, the whole shoe."
+            if req.shoes
+            else (" The person keeps their own shoes exactly as they are." if req.category in ("lower", "dress") else "")
+        )
         + MODEST
     )
 
@@ -211,7 +216,7 @@ class FluxKleinEngine(Engine):
         from .crop import _focus_box
 
         full_labels = parser.labels(full)
-        mask_full = agnostic_mask(full_labels, req.category, req.top_length, req.top_hem_frac)
+        mask_full = agnostic_mask(full_labels, req.category, req.top_length, req.top_hem_frac, shoes=bool(req.shoes))
         # The crop must hold the whole head. Cut through the face (the clothes start at the neck,
         # so their box + margin ends mid-face), Klein redraws a person whose head is cut off and
         # recomposes the picture: the body moved 60 px sideways, so the user's real head, put
@@ -297,6 +302,13 @@ class FluxKleinEngine(Engine):
         }[req.category]
         crop_labels = parser.labels(person)
         keep |= _dilate(np.isin(crop_labels, old_ids), 2)
+        from ..preprocess.parsing import L_SHOE, R_SHOE
+
+        shoe_px = np.isin(crop_labels, [L_SHOE, R_SHOE])
+        if req.shoes and req.category in ("lower", "dress"):
+            keep |= _dilate(shoe_px, 2)  # the whole old shoe goes
+        elif req.category in ("lower", "dress"):
+            keep &= ~_dilate(shoe_px, 1)  # the person's own shoes stay, all of them
         # Klein drew the new garment over where the old skin was (a long sleeve over a bare arm).
         if req.category in ("upper", "dress"):
             out_labels = parser.labels(out)
@@ -372,10 +384,20 @@ def _refit(engine: "FluxKleinEngine", req: TryOnRequest, img: Image.Image) -> Im
 
     debug.save("refit-raw", out)
     ids = [UPPER, SKIRT, PANTS, DRESS, BELT, SCARF]
-    clothes = np.isin(parser.labels(img), ids) | np.isin(parser.labels(out), ids)
+    from ..preprocess.parsing import BG, L_SHOE, R_SHOE
+
+    before, after = parser.labels(img), parser.labels(out)
+    clothes = np.isin(before, ids) | np.isin(after, ids)
     # Loose clothes spread past the old outline: more room the bigger they are.
     grow = max(3, int(0.012 * max(img.size))) * (1 + max(0, off))
-    alpha = Image.fromarray((_dilate(clothes, grow) * 255).astype(np.uint8), "L").filter(ImageFilter.GaussianBlur(3))
+    keep = _dilate(clothes, grow)
+    # Where it was background and is still background, keep the original: the edit redraws the
+    # background a little lighter, which showed as a pale halo around the person.
+    edge = max(3, int(0.006 * max(img.size)))
+    keep &= ~(~_dilate(before != BG, edge) & (after == BG))
+    # Shoes don't change size: keep them out of this pass.
+    keep &= ~_dilate(np.isin(before, [L_SHOE, R_SHOE]), 1)
+    alpha = Image.fromarray((keep * 255).astype(np.uint8), "L").filter(ImageFilter.GaussianBlur(2))
     result = img.copy()
     result.paste(out, (0, 0), alpha)
     log.info("klein: size pass, redrawn %d size(s) %s", abs(off), "too small" if off < 0 else "too big")

@@ -40,6 +40,9 @@ class TryOnRequest:
     # Live mode: the result goes back as the new clothes only (transparent elsewhere), for the
     # page to keep on the person's moving camera image.
     live: bool = False
+    # The outfit's shoes ("dark brown shoes") when the outfit photo shows them and the try-on covers
+    # the legs: then the whole shoe is replaced. None: the person's own shoes stay untouched.
+    shoes: Optional[str] = None
     # Size check: how many sizes the garment shown is off this shopper's size (app/sizing.py).
     # < 0 = drawn tight (all stocked sizes too small), > 0 = drawn loose (all too big).
     fit_off: int = 0

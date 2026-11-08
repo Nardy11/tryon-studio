@@ -126,6 +126,7 @@ def agnostic_mask(
     top_length: float | None = None,
     top_hem_frac: float | None = None,
     fit_off: int = 0,
+    shoes: bool = False,
 ) -> Image.Image:
     """White = area the try-on model may repaint. Built per person, then combined.
 
@@ -136,7 +137,7 @@ def agnostic_mask(
     region = np.zeros(labels.shape, dtype=bool)
     for band in split_people(labels):
         own = np.where(band, labels, BG)  # this person only; everyone else counts as background
-        region |= _agnostic_one(own, category, top_length, top_hem_frac, fit_off) & band
+        region |= _agnostic_one(own, category, top_length, top_hem_frac, fit_off, shoes) & band
     return Image.fromarray((region * 255).astype(np.uint8), mode="L")
 
 
@@ -146,6 +147,7 @@ def _agnostic_one(
     top_length: float | None = None,
     top_hem_frac: float | None = None,
     fit_off: int = 0,
+    shoes: bool = False,
 ) -> np.ndarray:
     """The mask for one person. Face, hair, hands and anything they hold stay black."""
     h, w = labels.shape
@@ -229,7 +231,15 @@ def _agnostic_one(
                         region[y, max(0, xs.min() - unit) : xs.max() + unit + 1] = True
         protect |= lower
     if category == "lower":
-        protect |= np.isin(labels, [UPPER, L_ARM, R_ARM, L_SHOE, R_SHOE])
+        protect |= np.isin(labels, [UPPER, L_ARM, R_ARM])
+    # Shoes change completely or not at all: half a repainted shoe (the leg span reaching the floor)
+    # looked like a stain.
+    shoe_px = np.isin(labels, [L_SHOE, R_SHOE])
+    if category in ("lower", "dress"):
+        if shoes:
+            region |= _dilate(shoe_px, max(2, unit // 3))
+        else:
+            protect |= _dilate(shoe_px, max(1, unit // 4))
     region &= ~_dilate(protect, 1)
     if category in ("upper", "dress"):
         # The parser has no "hand" label: hands are part of the arm. Keep the lowest part of each

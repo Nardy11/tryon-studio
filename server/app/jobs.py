@@ -199,6 +199,9 @@ class JobManager:
                     log.info("job %s: live frame, changing %s", job.id, req.category)
                 if outfit.person:
                     req.layers = outfit.for_category(req.category)
+                    # Shoes: the whole shoe changes when the outfit photo shows them, else none of it.
+                    if outfit.shoes and req.category in ("lower", "dress"):
+                        req.shoes = outfit.shoes
                     if req.category in ("upper", "dress"):
                         req.top_length = outfit.top_length
                         # The same hem on the user's body: measured on the model's skeleton, placed
