@@ -18,6 +18,8 @@ nothing else.
 ![React + Vite](https://img.shields.io/badge/web-React%20%2B%20Vite-61dafb)
 ![FastAPI](https://img.shields.io/badge/server-FastAPI%20%2B%20PyTorch-009688)
 ![Self-hosted GPU](https://img.shields.io/badge/runs%20on-your%20own%20GPU-76b900)
+[![MIT licence](https://img.shields.io/badge/licence-MIT-blue)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/Nardy11/tryon-studio?color=d9b45a)](https://github.com/Nardy11/tryon-studio/releases)
 
 </div>
 
@@ -196,6 +198,8 @@ laptop is on and the tunnel is running.
 ---
 
 ## 📜 Licences
+
+- **This project**: [MIT](LICENSE) © 2026 Nardy Michelle. The models below keep their own licences.
 
 - **FLUX.2 Klein 4B**: Apache 2.0. The 9B variant is non-commercial; don't swap it in.
 - **MediaPipe**: Apache 2.0 · **Falconsai NSFW detector**: Apache 2.0 · **CLIP**: MIT.
