@@ -11,7 +11,9 @@ const http = env.TRYON_HTTP === '1';
 
 export default defineConfig({
   // GitHub Pages serves the site under /<repo>/; the deploy workflow sets VITE_BASE.
-  base: env.VITE_BASE || '/',
+  // Given without slashes ("tryon-studio"): Git Bash on Windows rewrites a value starting with "/"
+  // into a Windows path ("/Program Files/Git/tryon-studio/") and the site loads nothing.
+  base: env.VITE_BASE ? `/${env.VITE_BASE.split(/[\/]+/).filter(Boolean).pop()}/` : '/',
   plugins: http ? [react()] : [react(), basicSsl()],
   server: {
     port: 5175,
