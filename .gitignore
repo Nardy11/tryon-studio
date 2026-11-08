@@ -29,3 +29,9 @@ server/scripts/download_watchdog.sh
 
 # Local tools (cloudflared)
 tools/
+
+# Research data, frames and weights stay local
+research/eval/
+research/data/
+research/checkpoints/
+research/.venv/

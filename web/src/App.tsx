@@ -78,6 +78,9 @@ export default function App() {
   const [gestures, setGestures] = useState(false);
   // Photo: upload photos, the model makes the look. Live: a real-time filter on the camera.
   const [mode, setMode] = useState<'photo' | 'live'>('photo');
+  // Live mode waits for the real-time model (research/README.md). Until then it is shown only
+  // with ?live=1 (testing) or a build made with VITE_LIVE=1.
+  const liveEnabled = import.meta.env.VITE_LIVE === '1' || new URLSearchParams(window.location.search).get('live') === '1';
   const [activeView, setActiveView] = useState<View>('front');
   const [activeEngine, setActiveEngine] = useState<string>('flux-klein');
   const [formError, setFormError] = useState<string | null>(null);
@@ -377,6 +380,7 @@ export default function App() {
                     : 'A live filter: the outfit appears on you in the camera and follows you. No photo is taken.'}
                 </p>
               </div>
+              {liveEnabled && (
               <div className="segmented" role="radiogroup" aria-label="How to add yourself">
                 {(['photo', 'live'] as const).map((m) => (
                   <button
@@ -391,6 +395,7 @@ export default function App() {
                   </button>
                 ))}
               </div>
+              )}
               {mode === 'live' ? (
                 <p className="live-hint">The camera is in the mirror. Whatever part of you is in view gets dressed.</p>
               ) : (
