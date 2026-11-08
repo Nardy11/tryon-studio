@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { FilesetResolver, PoseLandmarker } from '@mediapipe/tasks-vision';
-import { api, type OutfitLayer } from '../api';
+import { api } from '../api';
 
 /**
  * Live mode is a real-time filter. No photo of you is ever taken.
@@ -28,7 +28,6 @@ const SEEN = 0.55; // a landmark counts as visible above this
 type P = { x: number; y: number; v: number };
 type Pose = P[];
 type Rigged = { ref: Pose; bones: Bone[]; parts: Map<string, HTMLCanvasElement> };
-type Loaded = Rigged | { error: string };
 
 let landmarker: Promise<PoseLandmarker> | null = null;
 function getLandmarker(): Promise<PoseLandmarker> {
@@ -135,11 +134,15 @@ function rig(img: HTMLImageElement, bs: Bone[]): Map<string, HTMLCanvasElement> 
   sctx.drawImage(img, 0, 0);
   const data = sctx.getImageData(0, 0, w, h);
   const owner = new Int16Array(w * h).fill(-1);
+  const owner2 = new Int16Array(w * h).fill(-1);
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       const i = y * w + x;
       if (data.data[i * 4 + 3] === 0) continue;
       let best = Infinity;
+      let second = Infinity;
+      let kb = -1;
+      let ks = -1;
       for (let k = 0; k < bs.length; k++) {
         const { a, b, r } = bs[k];
         const abx = b.x - a.x;
@@ -148,10 +151,17 @@ function rig(img: HTMLImageElement, bs: Bone[]): Map<string, HTMLCanvasElement> 
         const t = Math.max(0, Math.min(1, ((x - a.x) * abx + (y - a.y) * aby) / L2));
         const d = Math.hypot(x - (a.x + t * abx), y - (a.y + t * aby)) / r;
         if (d < best) {
+          second = best;
+          ks = kb;
           best = d;
-          owner[i] = k;
+          kb = k;
+        } else if (d < second) {
+          second = d;
+          ks = k;
         }
       }
+      owner[i] = kb;
+      if (ks >= 0 && second < best * 1.12 + 0.05) owner2[i] = ks;
     }
   }
   const out = new Map<string, HTMLCanvasElement>();
@@ -161,23 +171,12 @@ function rig(img: HTMLImageElement, bs: Bone[]): Map<string, HTMLCanvasElement> 
     c.height = h;
     const ctx = c.getContext('2d')!;
     const part = ctx.createImageData(w, h);
-    for (let y = 0; y < h; y++) {
-      for (let x = 0; x < w; x++) {
-        const i = y * w + x;
-        // A two-pixel overlap with neighbouring parts, so bending joints don't open a seam.
-        let mine = owner[i] === k;
-        for (let dy = -2; !mine && dy <= 2; dy++)
-          for (let dx = -2; !mine && dx <= 2; dx++) {
-            const yy = y + dy;
-            const xx = x + dx;
-            if (yy >= 0 && yy < h && xx >= 0 && xx < w && owner[yy * w + xx] === k) mine = true;
-          }
-        if (!mine) continue;
-        part.data[i * 4] = data.data[i * 4];
-        part.data[i * 4 + 1] = data.data[i * 4 + 1];
-        part.data[i * 4 + 2] = data.data[i * 4 + 2];
-        part.data[i * 4 + 3] = data.data[i * 4 + 3];
-      }
+    for (let i = 0; i < w * h; i++) {
+      if (owner[i] !== k && owner2[i] !== k) continue;
+      part.data[i * 4] = data.data[i * 4];
+      part.data[i * 4 + 1] = data.data[i * 4 + 1];
+      part.data[i * 4 + 2] = data.data[i * 4 + 2];
+      part.data[i * 4 + 3] = data.data[i * 4 + 3];
     }
     ctx.putImageData(part, 0, 0);
     out.set(bone.name, c);
@@ -227,71 +226,142 @@ function maps(r: Pose, live: Pose, bs: Bone[]): Map<string, M> {
 // Back to front: legs under the torso, sleeves on top.
 const ORDER = ['pelvis', 'thighL', 'thighR', 'shinL', 'shinR', 'torso', 'armL', 'armR', 'foreL', 'foreR'];
 
+/** How far you've moved since a frame was sent: mean shift of the main joints, in shoulder widths. */
+function moved(a: Pose, b: Pose): number {
+  const ids = [LS, RS, LE, RE, LW, RW, LH, RH];
+  const sw = dist(a[LS], a[RS]) || 1;
+  let sum = 0;
+  let n = 0;
+  for (const i of ids) {
+    if (a[i].v > SEEN && b[i].v > SEEN) {
+      sum += dist(a[i], b[i]);
+      n++;
+    }
+  }
+  // A body part coming into view or leaving it (stepping back, sitting down) counts as a big move.
+  const changed = [LH, RH, LK, RK].some((i) => a[i].v > SEEN !== b[i].v > SEEN);
+  return changed ? 9 : n ? sum / n / sw : 9;
+}
+
+const REFRESH_MOVE = 0.18; // shoulder widths moved before a new realistic frame is worth making
+const REFRESH_MS = 20000; // and at least this often while you're in view
+
 export function LiveCamera({ outfit, title }: Props) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const video = useRef<HTMLVideoElement>(null);
   const [camera, setCamera] = useState<'starting' | 'ready' | 'error'>('starting');
   const [error, setError] = useState('');
-  const [layer, setLayer] = useState<'none' | 'loading' | 'ready' | 'error'>('none');
-  const [layerError, setLayerError] = useState('');
+  // waiting: nothing on you yet for this outfit; dressed: the realistic clothes are on you.
+  const [look, setLook] = useState<'waiting' | 'dressed'>('waiting');
+  const [notice, setNotice] = useState('');
   const [seenBody, setSeenBody] = useState<'none' | 'face' | 'body'>('none');
-  const cache = useRef(new Map<string, Promise<Loaded>>());
-  const current = useRef<Rigged | null>(null);
+  const [firstRun, setFirstRun] = useState(true);
+  const outfitRef = useRef(outfit);
+  outfitRef.current = outfit;
+  const state = useRef({
+    layer: null as (Rigged & { outfitId: string }) | null,
+    sentPose: null as Pose | null, // your pose (shares of the frame) in the last frame sent
+    sentAt: 0,
+    jobId: '' as string,
+    busy: false,
+    pauseUntil: 0,
+  });
 
-  // Prepare the current outfit (once per outfit; switching back is instant).
+  // A new outfit: drop the old clothes, and stop the frame that was being made for it.
   useEffect(() => {
-    if (!outfit) {
-      current.current = null;
-      setLayer('none');
-      return;
-    }
-    let alive = true;
-    let job = cache.current.get(outfit.id);
-    if (!job) {
-      job = api
-        .outfitLayer(outfit.file)
-        .then((l: OutfitLayer): Promise<Loaded> | Loaded => {
-          if (l.blocked) return { error: l.blocked.message };
-          if (l.retake) return { error: l.retake.message };
-          return new Promise<Loaded>((resolve) => {
-            const img = new Image();
-            img.onload = () => {
-              const ref = l.landmarks!.map(([x, y, v]) => ({ x: x * l.width!, y: y * l.height!, v }));
-              const bs = bones(ref);
-              if (!bs.length) return resolve({ error: 'We can’t find the shoulders in this outfit photo. Try a photo of the outfit worn, facing the camera.' });
-              resolve({ ref, bones: bs, parts: rig(img, bs) });
-            };
-            img.onerror = () => resolve({ error: 'The outfit could not be loaded.' });
-            img.src = l.image!;
-          });
-        })
-        .catch((e: Error): Loaded => ({ error: e.message || 'The try-on server could not be reached.' }));
-      cache.current.set(outfit.id, job);
-    }
-    setLayer('loading');
-    current.current = null;
-    job.then((res) => {
-      if (!alive) return;
-      if ('error' in res) {
-        cache.current.delete(outfit.id); // let a later visit try again
-        setLayerError(res.error);
-        setLayer('error');
-      } else {
-        current.current = res;
-        setLayer('ready');
-      }
-    });
-    return () => {
-      alive = false;
-    };
-  }, [outfit?.id, outfit?.file]);
+    const st = state.current;
+    st.layer = null;
+    st.sentPose = null;
+    if (st.jobId) api.forget(st.jobId);
+    st.jobId = '';
+    setLook('waiting');
+    setNotice('');
+  }, [outfit?.id]);
 
   useEffect(() => {
     let stopped = false;
     let stream: MediaStream | null = null;
     let raf = 0;
     let lastTime = -1;
-    let live: Pose | null = null;
+    let live: Pose | null = null; // canvas pixels
+    let liveN: Pose | null = null; // shares of the frame
+    let prevGrey: Uint8ClampedArray | null = null;
+    let stillness = 99;
+    const small = document.createElement('canvas');
+    small.width = 64;
+    small.height = 48;
+    const sctx = small.getContext('2d', { willReadFrequently: true })!;
+
+    const motion = (v: HTMLVideoElement) => {
+      sctx.drawImage(v, 0, 0, 64, 48);
+      const d = sctx.getImageData(0, 0, 64, 48).data;
+      const g = new Uint8ClampedArray(64 * 48);
+      for (let i = 0; i < g.length; i++) g[i] = (d[i * 4] * 3 + d[i * 4 + 1] * 6 + d[i * 4 + 2]) / 10;
+      const p = prevGrey;
+      prevGrey = g;
+      if (!p) return 99;
+      let s = 0;
+      for (let i = 0; i < g.length; i++) s += Math.abs(g[i] - p[i]);
+      return s / g.length;
+    };
+
+    /** Send the current camera frame for a realistic look; put the result on you when it's back. */
+    const send = async (v: HTMLVideoElement) => {
+      const st = state.current;
+      const o = outfitRef.current;
+      if (!o || !liveN) return;
+      st.busy = true;
+      const pose = liveN.map((p) => ({ ...p }));
+      const c = document.createElement('canvas');
+      const k = Math.min(1, 1024 / Math.max(v.videoWidth, v.videoHeight));
+      c.width = Math.round(v.videoWidth * k);
+      c.height = Math.round(v.videoHeight * k);
+      c.getContext('2d')!.drawImage(v, 0, 0, c.width, c.height);
+      const blob = await new Promise<Blob | null>((r) => c.toBlob(r, 'image/jpeg', 0.9));
+      st.sentPose = pose;
+      st.sentAt = performance.now();
+      try {
+        if (!blob) throw new Error('The camera frame could not be read.');
+        const job = await api.liveFrame(blob, o.file);
+        st.jobId = job.id;
+        let j = job;
+        while (!stopped && j.status !== 'done' && j.status !== 'error') {
+          await new Promise((r) => setTimeout(r, 300));
+          if (st.jobId !== job.id) return; // outfit changed meanwhile
+          j = await api.job(job.id);
+        }
+        if (stopped || st.jobId !== job.id) return;
+        st.jobId = '';
+        setFirstRun(false);
+        if (j.status === 'error') {
+          // Refused or failed: say so quietly; the next frame tries again.
+          setNotice(j.error ?? '');
+          return;
+        }
+        const url = URL.createObjectURL(await api.result(job.id));
+        const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+          const i = new Image();
+          i.onload = () => resolve(i);
+          i.onerror = reject;
+          i.src = url;
+        });
+        if (outfitRef.current?.id !== o.id) return;
+        const ref = pose.map((p) => ({ x: p.x * img.naturalWidth, y: p.y * img.naturalHeight, v: p.v }));
+        const bs = bones(ref);
+        if (!bs.length) return;
+        const parts = rig(img, bs);
+        URL.revokeObjectURL(url);
+        st.layer = { ref, bones: bs, parts, outfitId: o.id };
+        setLook('dressed');
+        setNotice('');
+      } catch (e) {
+        // A photo the server turned down (blurry, too dark...): wait a moment, then try again.
+        setNotice((e as Error).message || 'The try-on server could not be reached.');
+        st.pauseUntil = performance.now() + 3000;
+      } finally {
+        st.busy = false;
+      }
+    };
 
     (async () => {
       try {
@@ -323,21 +393,28 @@ export function LiveCamera({ outfit, title }: Props) {
           lastTime = v.currentTime;
           const W = cv.width;
           const H = cv.height;
-          const res = lm.detectForVideo(v, performance.now());
+          const now = performance.now();
+          const res = lm.detectForVideo(v, now);
           const pts = res.landmarks[0];
           if (pts) {
-            const next = pts.map((p) => ({ x: p.x * W, y: p.y * H, v: p.visibility ?? 1 }));
+            const next = pts.map((p) => ({ x: p.x, y: p.y, v: p.visibility ?? 1 }));
             // Smooth the jitter, keep the motion.
-            live = live ? next.map((p, i) => ({ x: live![i].x * 0.4 + p.x * 0.6, y: live![i].y * 0.4 + p.y * 0.6, v: p.v })) : next;
+            liveN = liveN ? next.map((p, i) => ({ x: liveN![i].x * 0.4 + p.x * 0.6, y: liveN![i].y * 0.4 + p.y * 0.6, v: p.v })) : next;
+            live = liveN.map((p) => ({ x: p.x * W, y: p.y * H, v: p.v }));
           } else {
+            liveN = null;
             live = null;
           }
-          setSeenBody(!live ? 'none' : live[LS].v > SEEN && live[RS].v > SEEN ? 'body' : 'face');
+          const body = !live ? 'none' : live[LS].v > SEEN && live[RS].v > SEEN ? 'body' : 'face';
+          setSeenBody(body);
+          stillness = stillness * 0.7 + motion(v) * 0.3;
 
           ctx.setTransform(1, 0, 0, 1, 0, 0);
           ctx.drawImage(v, 0, 0, W, H);
-          const g = current.current;
-          if (g && live) {
+          const st = state.current;
+          const g = st.layer;
+          if (g && live && g.outfitId === outfitRef.current?.id) {
+            // The realistic clothes, made on you a moment ago, moved to where you are now.
             const ms = maps(g.ref, live, g.bones);
             for (const name of ORDER) {
               const m = ms.get(name);
@@ -347,6 +424,19 @@ export function LiveCamera({ outfit, title }: Props) {
               ctx.drawImage(part, 0, 0);
             }
             ctx.setTransform(1, 0, 0, 1, 0, 0);
+          }
+
+          // A new realistic frame when the GPU is free, you're in view and fairly still, and you
+          // have moved (or it's been a while). No photo step: it just keeps adapting.
+          if (
+            outfitRef.current &&
+            !st.busy &&
+            body === 'body' &&
+            now > st.pauseUntil &&
+            stillness < 6 &&
+            (!st.sentPose || !liveN || moved(st.sentPose, liveN) > REFRESH_MOVE || now - st.sentAt > REFRESH_MS)
+          ) {
+            void send(v);
           }
         };
         loop();
@@ -370,6 +460,8 @@ export function LiveCamera({ outfit, title }: Props) {
       stopped = true;
       cancelAnimationFrame(raf);
       stream?.getTracks().forEach((t) => t.stop());
+      const st = state.current;
+      if (st.jobId) api.forget(st.jobId);
     };
   }, []);
 
@@ -390,25 +482,24 @@ export function LiveCamera({ outfit, title }: Props) {
     );
   }
 
-  const open = layer !== 'loading';
   const hint =
     camera === 'starting'
       ? 'Starting the camera…'
       : !outfit
         ? 'Add an outfit and it appears on you.'
-        : layer === 'loading'
-          ? 'Getting the outfit ready…'
-          : layer === 'error'
-            ? ''
-            : seenBody === 'none'
-              ? 'Step in front of the camera.'
-              : seenBody === 'face'
-                ? 'Show your shoulders to the camera and the outfit appears.'
-                : 'Move around: the outfit follows you. Swipe or use Next to change outfit.';
+        : seenBody === 'none'
+          ? 'Step in front of the camera.'
+          : seenBody === 'face'
+            ? 'Show your shoulders to the camera and the outfit appears.'
+            : look === 'waiting'
+              ? firstRun
+                ? 'Dressing you… the first look takes longer while the model starts.'
+                : 'Dressing you…'
+              : 'The outfit follows you and refreshes as you move. Swipe or use Next to change outfit.';
 
   return (
     <figure className="mirror-wrap">
-      <div className={`mirror live-mirror ${open ? 'open' : 'closed'}`}>
+      <div className={`mirror live-mirror ${look === 'dressed' || !outfit || firstRun ? 'open' : 'closed'}`}>
         <video ref={video} muted playsInline className="live-video" aria-hidden="true" />
         <canvas ref={canvas} className="live-canvas" aria-label="You, live, wearing the outfit" />
         <div className="stage-curtains" aria-hidden="true">
@@ -417,24 +508,18 @@ export function LiveCamera({ outfit, title }: Props) {
           <span className="lift" />
           <span className="valance" />
         </div>
-        {layer === 'loading' && (
-          <div className="plaque" role="status">
+        {outfit && look === 'waiting' && seenBody === 'body' && (
+          <div className={`plaque ${firstRun ? 'low' : ''}`} role="status">
             {title && <span className="plaque-title">{title}</span>}
             <span className="m-progress" aria-hidden="true" />
-            <span>Getting the outfit ready…</span>
-          </div>
-        )}
-        {layer === 'error' && (
-          <div className="plaque error" role="alert">
-            {title && <span className="plaque-title">{title}</span>}
-            <span>{layerError}</span>
+            <span>{notice || (firstRun ? 'Dressing you… (the first look takes about a minute)' : 'Dressing you…')}</span>
           </div>
         )}
       </div>
       {hint && (
         <figcaption className="live-caption">
           <span className="live-hint" aria-live="polite">
-            {hint}
+            {look === 'dressed' && notice ? notice : hint}
           </span>
         </figcaption>
       )}

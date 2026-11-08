@@ -334,7 +334,7 @@ def _skin_by_region(img: Image.Image, layer_labs: list) -> Optional[dict]:
     import cv2
 
     from .preprocess.body import skeleton
-    from .preprocess.parsing import BAG, BG, FACE, HAIR, HAT, L_SHOE, R_SHOE, SUNGLASSES, parser
+    from .preprocess.parsing import BAG, BG, FACE, HAIR, HAT, L_ARM, L_SHOE, R_ARM, R_SHOE, SUNGLASSES, parser
 
     img = img.convert("RGB")
     sk = skeleton(img)
@@ -352,7 +352,9 @@ def _skin_by_region(img: Image.Image, layer_labs: list) -> Optional[dict]:
     skin = np.linalg.norm((lab - ref) * w8, axis=2) < 14
     for g in layer_labs:
         skin &= np.linalg.norm((lab - np.asarray(g, np.float32)) * w8, axis=2) >= 14
-    body = ~np.isin(labels, [BG, HAIR, HAT, SUNGLASSES, BAG, L_SHOE, R_SHOE])
+    # Arms and hands are left out: a hand holding a phone at the chest is not a bare chest, and
+    # bare arms are not what this check is for.
+    body = ~np.isin(labels, [BG, HAIR, HAT, SUNGLASSES, BAG, L_SHOE, R_SHOE, L_ARM, R_ARM])
     out = {}
     h = labels.shape[0]
     for name, (a, b) in REGIONS.items():

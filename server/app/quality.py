@@ -108,6 +108,15 @@ def check_person(img: Image.Image) -> Optional[Retake]:
     return None
 
 
+def check_live(img: Image.Image) -> Optional[Retake]:
+    """A live camera frame: any framing is fine (head and shoulders, half body, full body). Only
+    what makes a frame unusable: blurred, too dark or too bright, or nobody there."""
+    labels = parser.labels(img)
+    # More faces (a mirror, a poster, a TV behind you) don't stop the filter: it works on the
+    # main person.
+    return _common(img, labels, TINY, "person")
+
+
 def check_outfit(img: Image.Image) -> Optional[Retake]:
     labels = parser.labels(img)
     has_person = (labels == FACE).sum() > 0.0015 * labels.size

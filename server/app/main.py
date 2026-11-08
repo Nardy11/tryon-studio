@@ -184,14 +184,14 @@ def _visitor(request: Request) -> str:
     return request.headers.get("cf-connecting-ip") or (request.client.host if request.client else "?")
 
 
-def _rate_limit(request: Request) -> None:
+def _rate_limit(request: Request, live: bool = False) -> None:
     """A fair share of the one GPU per visitor (the site is public)."""
     import time
 
     now = time.time()
-    who = _visitor(request)
+    who = _visitor(request) + (":live" if live else "")
     times = [t for t in _recent.get(who, []) if now - t < 600]
-    if len(times) >= settings.looks_per_10min:
+    if len(times) >= (settings.live_frames_per_10min if live else settings.looks_per_10min):
         raise HTTPException(429, "You've made a lot of looks in a short time. Please wait a few minutes.")
     times.append(now)
     _recent[who] = times
@@ -216,11 +216,12 @@ async def tryon(
     # photos (fixed colour and garment words). A typed "description" was a way to steer the
     # editing model ("... and take off ..."), so the field is gone and anything sent is ignored.
     # Steps are fixed per engine for the same reason: fewer knobs, fewer ways to get odd output.
-    _rate_limit(request)
+    _rate_limit(request, live)
     engine = engine or settings.default_engine
     if engine not in ENGINES:
         raise HTTPException(422, f"Unknown engine '{engine}'. Use one of: {', '.join(ENGINES)}.")
-    if category not in CATEGORIES:
+    # Live mode: the server decides what to change from what's in the frame.
+    if not (live and category == "auto") and category not in CATEGORIES:
         raise HTTPException(422, "Category must be upper, lower or dress.")
     if view not in VIEWS:
         raise HTTPException(422, "View must be front, side or back.")
@@ -246,12 +247,12 @@ async def tryon(
             raise HTTPException(503 if verdict.code == "unavailable" else 422, verdict.message)
     # Quality: a photo that would give a poor result is turned away here, before the GPU is used
     # (a retake costs the customer a moment; a failed run costs a minute and shows an error).
-    retake = await asyncio.to_thread(quality.check_person, person_img)
+    retake = await asyncio.to_thread(quality.check_live if live else quality.check_person, person_img)
     if retake is None:
         retake = await asyncio.to_thread(quality.check_outfit, garment_img)
     if retake is None and back_img is not None:
         retake = await asyncio.to_thread(quality.check_outfit, back_img)
-    if retake is None and category in ("lower", "dress"):
+    if retake is None and not live and category in ("lower", "dress"):
         from .preprocess.parsing import parser
 
         labels = await asyncio.to_thread(parser.labels, person_img)
@@ -271,6 +272,7 @@ async def tryon(
         seed=seed,
         lock_outside=lock_outside,
         live=live,
+        max_side=settings.live_max_side if live else None,
     )
     try:
         job = jobs.submit(engine, req)

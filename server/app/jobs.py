@@ -68,6 +68,38 @@ class Job:
         }
 
 
+_outfits: dict[str, object] = {}
+
+
+def _outfit_cached(img):
+    """Live mode sends the same outfit with every frame: read it once."""
+    import hashlib
+
+    key = hashlib.sha1(img.convert("RGB").tobytes()).hexdigest()
+    if key not in _outfits:
+        if len(_outfits) > 64:
+            _outfits.clear()
+        _outfits[key] = analyse_outfit(img)
+    return _outfits[key]
+
+
+def _live_category(person, outfit) -> str:
+    """What to change in a live frame: the parts of the outfit whose body part is in view."""
+    from .preprocess.parsing import L_LEG, PANTS, R_LEG, SKIRT, parser
+    import numpy as np
+
+    labels = parser.labels(person)
+    legs = float(np.isin(labels, [L_LEG, R_LEG, PANTS, SKIRT]).mean()) > 0.03
+    parts = {layer.part for layer in outfit.layers}
+    has_top = bool(parts & {"upper", "dress"})
+    has_bottom = bool(parts & {"lower", "dress"})
+    if legs and has_top and has_bottom:
+        return "dress"
+    if has_top or not legs:
+        return "upper"
+    return "lower"
+
+
 class QueueFull(RuntimeError):
     pass
 
@@ -158,7 +190,10 @@ class JobManager:
                 debug.save("input-outfit", req.garment)
                 # The outfit as a checklist of layers (coat, top under it, T-shirt hem, trousers),
                 # each with its colour, read from the original photo before any cut-out.
-                outfit = analyse_outfit(req.garment)
+                outfit = _outfit_cached(req.garment)
+                if req.category == "auto":
+                    req.category = _live_category(req.person, outfit)
+                    log.info("job %s: live frame, changing %s", job.id, req.category)
                 if outfit.person:
                     req.layers = outfit.for_category(req.category)
                     if req.category in ("upper", "dress"):
@@ -198,7 +233,7 @@ class JobManager:
                 # gets one more try with another seed (the photos already passed the quality and
                 # safety checks, so the model is the likely cause); then it is refused for good.
                 verdict = None
-                for attempt in range(2):
+                for attempt in range(1 if req.live else 2):
                     if attempt:
                         req.seed += 1009
                         log.info("job %s: result refused (%s), generating once more", job.id, verdict.code)
@@ -211,7 +246,7 @@ class JobManager:
                         check = verify(out, req.layers, req.person)
                         missing = [c["name"] for c, l in zip(check, req.layers) if not c["ok"] and l.role != "under"]
                         log.info("job %s: checklist %s", job.id, [(c["name"], c["ok"], c["share"]) for c in check])
-                        if missing:
+                        if missing and not req.live:  # live: the next frame is the retry
                             log.info("job %s: missing %s, generating again", job.id, missing)
                             req.seed += 1
                             req.check_cancel()

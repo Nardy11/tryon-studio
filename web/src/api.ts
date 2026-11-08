@@ -117,6 +117,15 @@ export const api = {
     form.append('person', file);
     return fetch(`${API}/api/check-photo`, { method: 'POST', body: form }).then((r) => parse<PhotoCheck>(r));
   },
+  /** Live mode: one camera frame, dressed realistically (category chosen by the server from what's in view). */
+  liveFrame(frame: Blob, garment: File) {
+    const form = new FormData();
+    form.append('person', frame, 'frame.jpg');
+    form.append('garment', garment);
+    form.append('category', 'auto');
+    form.append('live', 'true');
+    return fetch(`${API}/api/tryon`, { method: 'POST', body: form }).then((r) => parse<Job>(r));
+  },
   outfitLayer(file: File) {
     const form = new FormData();
     form.append('garment', file);

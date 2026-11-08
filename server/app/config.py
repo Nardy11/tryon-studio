@@ -28,6 +28,10 @@ class Settings:
     max_upload_mb: int = _int("TRYON_MAX_UPLOAD_MB", 60)
     # Results live in memory only: deleted when downloaded, or after this many seconds if never collected.
     result_ttl_s: int = _int("TRYON_RESULT_TTL_S", 120)
+    # Live mode renders camera frames smaller, so a realistic look comes back in seconds.
+    live_max_side: int = _int("TRYON_LIVE_MAX_SIDE", 576)
+    # Live frames one visitor may send per 10 minutes (one at a time, back to back).
+    live_frames_per_10min: int = _int("TRYON_LIVE_FRAMES_PER_10MIN", 200)
     # Looks one visitor may start per 10 minutes (the GPU is shared once the site is public).
     looks_per_10min: int = _int("TRYON_LOOKS_PER_10MIN", 12)
     # Most jobs that may wait in the queue before new ones are refused.

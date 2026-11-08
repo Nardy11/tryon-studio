@@ -196,7 +196,7 @@ class FluxKleinEngine(Engine):
             Image.fromarray(focus.astype(np.uint8) * 255), full.size, full.width / full.height, context=0.15
         )
         person = full.crop(crop_box)
-        width, height = fit_size(person.size, settings.max_side, multiple=16)
+        width, height = fit_size(person.size, req.max_side or settings.max_side, multiple=16)
         person_in = person.resize((width, height), Image.LANCZOS)
         worn = req.garment_worn is not None
         garment_in = _fit(req.garment_worn if worn else req.garment, settings.klein_ref_side)

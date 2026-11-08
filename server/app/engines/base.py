@@ -40,6 +40,8 @@ class TryOnRequest:
     # Live mode: the result goes back as the new clothes only (transparent elsewhere), for the
     # page to keep on the person's moving camera image.
     live: bool = False
+    # Longest side handed to the model for this request (None = settings.max_side).
+    max_side: Optional[int] = None
     # Set when the job is cancelled; engines stop at the next diffusion step.
     cancel: Optional[threading.Event] = None
 

@@ -441,3 +441,6 @@ input[type='text'], input[type='number'] {
 .mirror.live-mirror { border-radius: 18px; padding-top: 40px; background: #3a0610; }
 .mirror.live-mirror .valance { height: 34px; min-height: 0; }
 .mirror.live-mirror .live-canvas { border-radius: 0 0 12px 12px; }
+
+/* Live: a status line at the bottom, so you can still see yourself while the first look is made. */
+.plaque.low { top: auto; bottom: 16px; transform: translateX(-50%); }
