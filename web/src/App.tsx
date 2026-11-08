@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, setServer, API, type Category, type EngineInfo, type Health, type OutfitAnalysis, type PhotoCheck, type SizeEstimate, type View } from './api';
-import { SIZES, neededSize, verdict as fitVerdict, type Fit } from './fit';
+import { SIZES, lengthFit, neededSize, verdict as fitVerdict, type Fit } from './fit';
 import { FitBadge } from './components/FitBadge';
 import { SizeChips } from './components/SizeChips';
 import { PhotoSlot } from './components/PhotoSlot';
@@ -36,7 +36,14 @@ export type Run = {
   runSeconds?: number | null;
   checklist?: { name: string; ok: boolean }[];
   /** Size check for this look, from the server (size letters only). */
-  fit?: { verdict: string; needed: string | null; worn: string | null; off: number; drawn_in_own_size?: boolean } | null;
+  fit?: {
+    verdict: string;
+    needed: string | null;
+    worn: string | null;
+    off: number;
+    drawn_in_own_size?: boolean;
+    length?: { sleeves: number; body: number; legs: number; off: number } | null;
+  } | null;
   loadSeconds?: number;
   startedAt: number;
 };
@@ -215,7 +222,8 @@ export default function App() {
     if (!sizeEst || sizeEst.confidence === 'none' || !o.sizes.length) return null;
     const parts = new Set((o.analysis?.layers ?? []).map((l) => l.part));
     if (!parts.size) parts.add(o.category === 'lower' ? 'lower' : o.category === 'dress' ? 'dress' : 'upper');
-    return fitVerdict(neededSize(sizeEst, parts), o.sizes);
+    const f = fitVerdict(neededSize(sizeEst, parts), o.sizes);
+    return { ...f, length: lengthFit(sizeEst, f.worn, parts) };
   };
 
   // ---- form helpers ----
@@ -474,7 +482,7 @@ export default function App() {
                     {sizeError
                       ? sizeError
                       : sizeEst && sizeEst.confidence !== 'none'
-                        ? `You: about ${sizeEst.top_label ?? '?'} on top${sizeEst.bottom_label ? `, ${sizeEst.bottom_label} for bottoms` : ''}${sizeEst.chest_cm ? ` (chest ~${sizeEst.chest_cm} cm${sizeEst.waist_cm ? `, waist ~${sizeEst.waist_cm} cm` : ''})` : ''}.${!weightKg ? ' Add your weight for a more reliable size.' : ''}`
+                        ? `You: about ${sizeEst.top_label ?? '?'} on top${sizeEst.bottom_label ? `, ${sizeEst.bottom_label} for bottoms` : ''}${sizeEst.chest_cm ? ` (chest ~${sizeEst.chest_cm} cm${sizeEst.waist_cm ? `, waist ~${sizeEst.waist_cm} cm` : ''}${sizeEst.lengths_from === 'photo' ? `, arms ~${sizeEst.arm_cm} cm, legs ~${sizeEst.leg_cm} cm` : ''})` : ''}.${!weightKg ? ' Add your weight for a more reliable size.' : ''}`
                         : sizeEst?.reason
                           ? sizeReason(sizeEst.reason)
                           : ''}

@@ -25,7 +25,15 @@ export type Job = {
   /** Each piece of the outfit and whether it made it into the result. */
   checklist: { name: string; ok: boolean }[];
   /** Size check: which size the look is drawn in and how it fits (size letters only). */
-  fit?: { verdict: string; needed: string | null; worn: string | null; off: number; drawn_in_own_size?: boolean } | null;
+  fit?: {
+    verdict: string;
+    needed: string | null;
+    worn: string | null;
+    off: number;
+    drawn_in_own_size?: boolean;
+    /** Length per part: < 0 too short, > 0 too long (steps 1-3). */
+    length?: { sleeves: number; body: number; legs: number; off: number } | null;
+  } | null;
 };
 
 /** The shopper's estimated measurements and size (sizes as indexes: XS=0 … XL=4, 5 = XL + 1 …). */
@@ -39,6 +47,11 @@ export type SizeEstimate = {
   bottom_size: number | null;
   top_label?: string | null;
   bottom_label?: string | null;
+  arm_cm?: number;
+  body_cm?: number;
+  leg_cm?: number;
+  /** "photo": measured on the skeleton; "height": standard proportions of the height. */
+  lengths_from?: 'photo' | 'height';
 };
 
 /** A photo the server's safety check refused (nudity, underwear or swimwear, a child). */

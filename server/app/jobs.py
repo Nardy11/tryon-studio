@@ -241,9 +241,11 @@ class JobManager:
                 verdict = None
                 # A too-tight or too-loose look refused twice gets one more try in the shopper's own
                 # size, labelled as such (the safety checks always win over showing the bad fit).
-                for attempt in range(1 if req.live else (3 if req.fit_off else 2)):
+                fit_drawn = bool(req.fit_off or (req.length or {}).get("off"))
+                for attempt in range(1 if req.live else (3 if fit_drawn else 2)):
                     if attempt == 2:
                         req.fit_off = 0
+                        req.length = None
                         if job.fit:
                             job.fit = {**job.fit, "drawn_in_own_size": True}
                     if attempt:
@@ -271,7 +273,7 @@ class JobManager:
                                 out, check = out2, check2
                         job.checklist = check
                     # Size check, pass 2: the same look redrawn tight or loose (only when off).
-                    if req.fit_off and hasattr(engine, "refit"):
+                    if (req.fit_off or (req.length or {}).get("off")) and hasattr(engine, "refit"):
                         req.check_cancel()
                         out = engine.refit(req, out)
                         debug.save("after-refit", out)

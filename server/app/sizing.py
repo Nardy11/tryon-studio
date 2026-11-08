@@ -33,6 +33,11 @@ SIZES = ["XS", "S", "M", "L", "XL"]
 CHEST = [88, 96, 104, 112, 120]
 WAIST = [70, 76, 82, 88, 96]
 STEP_ABOVE = 8.0
+
+# Length: each size is cut for a body of a certain height (about +6 cm per size). Body proportions
+# turn that into the arm, body and leg lengths the garment is made for.
+MADE_FOR_HEIGHT = [160, 166, 172, 178, 184]
+ARM, BODY, LEG = 0.335, 0.29, 0.47  # shoulder joint->wrist, shoulder->hip joints, hip joint->ankle
 CLOTHES_CM = 4.0  # what the clothes in the photo add to each circumference
 NEAR_CM = 2.0  # within this of a size boundary: "between" two sizes
 
@@ -185,6 +190,11 @@ def _estimate(img: Image.Image, height_cm: float, weight_kg: Optional[float]) ->
         # Without a weight, the skeleton gives the frame, not how full the body is.
         confidence = "rough" if confidence == "high" else "low"
 
+    # ---- lengths: arm, body, leg, from standard proportions of the height. Measuring them in the
+    # photo misleads: an arm bent toward the camera looks short, crossed legs look short. ----
+    lengths_from = "height"
+    arm_cm, body_cm, leg_cm = ARM * height_cm, BODY * height_cm, LEG * height_cm
+
     top = size_of(chest, CHEST) if chest else (None, False)
     bottom = size_of(waist, WAIST) if waist else (None, False)
     return {
@@ -198,6 +208,10 @@ def _estimate(img: Image.Image, height_cm: float, weight_kg: Optional[float]) ->
         "top_between": top[1],
         "bottom_size": bottom[0],
         "bottom_between": bottom[1],
+        "arm_cm": int(round(float(arm_cm))),
+        "body_cm": int(round(float(body_cm))),
+        "leg_cm": int(round(float(leg_cm))),
+        "lengths_from": lengths_from,
     }
 
 
@@ -239,3 +253,27 @@ def verdict(needed: Optional[int], stock: list[int]) -> dict:
     else:
         v = "close"
     return {"verdict": v, "needed": label(needed), "worn": label(worn), "off": off}
+
+
+def _steps(delta_cm: float) -> int:
+    """cm the shopper is longer (+) than the garment is cut for -> steps; garment short = negative."""
+    a = abs(delta_cm)
+    n = 0 if a < 4 else 1 if a < 8 else 2 if a < 12 else 3
+    return -n if delta_cm > 0 else n
+
+
+def length_fit(est: dict, worn: Optional[int], parts: set[str]) -> dict:
+    """How the size worn fits in length, per part: < 0 too short, > 0 too long (steps 1-3).
+    Tops: sleeves and body; bottoms: legs; full outfits: all three."""
+    if worn is None or not (0 <= worn < len(SIZES)) or est.get("arm_cm") is None:
+        return {"sleeves": 0, "body": 0, "legs": 0, "off": 0}
+    h = MADE_FOR_HEIGHT[worn]
+    top = bool(parts & {"upper", "dress"})
+    bottom = bool(parts & {"lower", "dress"})
+    out = {
+        "sleeves": _steps(est["arm_cm"] - ARM * h) if top else 0,
+        "body": _steps(est["body_cm"] - BODY * h) if top else 0,
+        "legs": _steps(est["leg_cm"] - LEG * h) if bottom else 0,
+    }
+    out["off"] = max(out.values(), key=abs)
+    return out

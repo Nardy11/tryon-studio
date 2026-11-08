@@ -126,11 +126,23 @@ Deleting a job also stops its generation on the GPU.
 - The size worn is your size if it's in stock, otherwise the closest one sold.
 - Verdicts: **Fits**, **A little tight/loose** (your size is out), **Snug** / **A bit big** (one size off at the edge of the range), **Too small** / **Too big** (two or more off).
 
+**15b. Length** (`sizing.length_fit`, the same rule in `web/src/fit.ts`)
+- Each size is cut for a body of a certain height: XS 160, S 166, M 172, L 178, XL 184 cm.
+- Standard proportions give the arm (0.335 × height), body (0.29) and leg (0.47) each size is made for. They also give the shopper's own lengths, from their height; the photo isn't used for this, because bent arms and crossed legs look short in it.
+- The shopper's length minus the garment's, in cm: under 4 is fine, 4–8 is one step, 8–12 two, over 12 three. Too short is negative, too long positive.
+- Tops are checked on sleeves and body, bottoms on legs, full outfits on all three.
+
 **16. Draw the fit**
 - The try-on is drawn in the size you'd actually get, in two passes:
   1. Klein draws the outfit normally, as faithfully as ever.
   2. When the size is off, the finished look is edited with no outfit photo to copy, **once per size off**: tighter (strain lines, short sleeves) or looser (dropped shoulders, long sleeves, wide legs).
 - Only the clothes area of the edit is kept, with more room the looser it gets.
+- **Length** is drawn by local edits, one per part that's off, each kept only in that part's area (found on the skeleton):
+  - trousers too short: the band above the ankles becomes ankles and socks;
+  - trousers too long: the hem folds over the shoes;
+  - sleeves too short: wrists and forearms show;
+  - sleeves too long: the cuffs come down over the hands;
+  - top too long: it hangs past the hips. A top that's too short is shown as text only, because it never exposes the midriff.
 - Tight looks always keep the body fully covered, and all three safety checks still apply.
 - If a bad-fit look is refused twice, it's drawn once more in the shopper's own size and labelled as such.
 

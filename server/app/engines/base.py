@@ -46,6 +46,9 @@ class TryOnRequest:
     # Size check: how many sizes the garment shown is off this shopper's size (app/sizing.py).
     # < 0 = drawn tight (all stocked sizes too small), > 0 = drawn loose (all too big).
     fit_off: int = 0
+    # Length of the size worn, per part: {"sleeves", "body", "legs", "off"}, < 0 too short, > 0 too
+    # long, in steps of 1-3 (app/sizing.length_fit).
+    length: Optional[dict] = None
     # The size verdict for this look (size letters only; never height or weight).
     fit: Optional[dict] = None
     # Longest side handed to the model for this request (None = settings.max_side).

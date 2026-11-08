@@ -461,3 +461,4 @@ input[type='text'], input[type='number'] {
 .fit-badge.warn { border-color: #c9922a; background: rgb(201 146 42 / 0.12); }
 .fit-badge.bad { border-color: #c4453a; background: rgb(196 69 58 / 0.1); }
 .fit-badge.compact { max-width: min(100%, 460px); justify-self: center; text-align: center; }
+.fit-badge .fit-length { font-weight: 600; }

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { Run } from '../App';
+import { lengthText } from '../fit';
 
 type Props = {
   before?: string;
@@ -138,7 +139,7 @@ export function Mirror({ before, run, engineLabel, ahead, title }: Props) {
         </ul>
       )}
       {showCompare && run?.status === 'done' && run.fit && run.fit.verdict !== 'unknown' && run.fit.worn && (
-        <p className={`fit-badge compact ${run.fit.verdict === 'fits' ? 'good' : run.fit.verdict === 'too_small' || run.fit.verdict === 'too_big' ? 'bad' : 'warn'}`} role="status">
+        <p className={`fit-badge compact ${run.fit.verdict === 'fits' && !run.fit.length?.off ? 'good' : run.fit.verdict === 'fits' ? 'warn' : run.fit.verdict === 'too_small' || run.fit.verdict === 'too_big' ? 'bad' : 'warn'}`} role="status">
           <strong>Shown in {run.fit.worn}</strong>
           <span>
             {run.fit.drawn_in_own_size
@@ -147,6 +148,7 @@ export function Mirror({ before, run, engineLabel, ahead, title }: Props) {
                 ? `Your size (${run.fit.needed}).`
                 : `${Math.abs(run.fit.off)} size${Math.abs(run.fit.off) === 1 ? '' : 's'} too ${run.fit.off < 0 ? 'small' : 'big'} for you (you're about ${run.fit.needed}).`}
           </span>
+          {!run.fit.drawn_in_own_size && lengthText(run.fit.length) && <span className="fit-length">{lengthText(run.fit.length)}</span>}
         </p>
       )}
       {showCompare && run?.status === 'done' && (

@@ -223,7 +223,10 @@ def _fit_for(person, garment, height_cm: float, weight_kg: Optional[float], size
     outfit = _outfit_cached(garment)
     parts = {layer.part for layer in outfit.layers} or {"upper"}
     v = sizing.verdict(sizing.needed_size(est, parts), stock)
-    log.info("size check: needs %s, shown in %s (%s)", v["needed"], v["worn"], v["verdict"])  # letters only
+    worn = sizing.SIZES.index(v["worn"]) if v["worn"] in sizing.SIZES else None
+    v["length"] = sizing.length_fit(est, worn, parts)
+    # Letters and steps only: never height, weight or measurements.
+    log.info("size check: needs %s, shown in %s (%s), length %s", v["needed"], v["worn"], v["verdict"], v["length"])
     return v
 
 
@@ -335,6 +338,7 @@ async def tryon(
         req.fit = await asyncio.to_thread(_fit_for, person_img, garment_img, height_cm, weight_kg, sizes)
         if req.fit:
             req.fit_off = int(req.fit["off"])
+            req.length = req.fit.get("length")
     try:
         job = jobs.submit(engine, req)
     except QueueFull as exc:

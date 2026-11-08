@@ -30,7 +30,7 @@ nothing else.
 - 🎭 **A stage, not a form.** Red curtains close while your look is made, then lift and part to reveal it. Pull the gold rope to compare with your own photo.
 - 👗 **Several outfits at once.** They're made one after another, and you flip through them with **Next** or **a swipe of your hand** (hand tracking runs in your browser).
 - 📷 **Photo or Live camera.** Upload photos, or just stand in front of the camera: no photo step. Live mode keeps sending frames to the model while you're in view (a realistic look every ~10 s on a laptop GPU), keeps the latest one on you as you move, and dresses only the parts of you that are in frame.
-- 📏 **Size check.** Enter your height (and weight if you like). It estimates your size, compares it with the sizes in stock (XS–XL), and draws the try-on **in the size you'd actually get**: visibly tight if every size is too small, baggy if every size is too big.
+- 📏 **Size check.** Enter your height (and weight if you like). It estimates your size, compares it with the sizes in stock (XS–XL), and draws the try-on **in the size you'd actually get**: tight or baggy, and too short or too long for your height (sleeves, trousers, top length).
 - 🧵 **Reads the outfit like a stylist.** Jacket, top underneath, trousers; each piece's colour; where each hem ends on the body. That checklist goes to the model, and every result is checked against it.
 - 🛡️ **Safe by design.** Every photo and every result is checked. Nothing revealing is ever made or shown, and photos are never stored.
 - 🖥️ **Your GPU, no API bill.** The model runs on your own machine. No tokens, no per-image fees, no photos sent to anyone.

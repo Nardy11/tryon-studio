@@ -11,7 +11,54 @@ export const sizeLabel = (i: number) => (i >= 0 && i < SIZES.length ? SIZES[i] :
 
 export type Verdict = 'fits' | 'close' | 'snug' | 'loose' | 'too_small' | 'too_big' | 'unknown';
 
-export type Fit = { verdict: Verdict; needed: number | null; worn: number | null; off: number };
+export type Length = { sleeves: number; body: number; legs: number; off: number };
+
+export type Fit = { verdict: Verdict; needed: number | null; worn: number | null; off: number; length?: Length };
+
+// Length (same as server/app/sizing.py): each size is cut for a body of a certain height.
+export const MADE_FOR_HEIGHT = [160, 166, 172, 178, 184];
+const ARM = 0.335;
+const BODY = 0.29;
+const LEG = 0.47;
+
+/** cm the shopper is longer (+) than the garment is cut for -> steps; garment too short = negative. */
+function steps(delta: number): number {
+  const a = Math.abs(delta);
+  const n = a < 4 ? 0 : a < 8 ? 1 : a < 12 ? 2 : 3;
+  return delta > 0 ? -n : n;
+}
+
+/** How the size worn fits in length, per part (tops: sleeves, body; bottoms: legs). */
+export function lengthFit(est: SizeEstimate, worn: number | null, parts: Set<string>): Length {
+  const none = { sleeves: 0, body: 0, legs: 0, off: 0 };
+  if (worn == null || worn < 0 || worn >= SIZES.length || est.arm_cm == null) return none;
+  const h = MADE_FOR_HEIGHT[worn];
+  const top = parts.has('upper') || parts.has('dress');
+  const bottom = parts.has('lower') || parts.has('dress');
+  const out = {
+    sleeves: top ? steps(est.arm_cm - ARM * h) : 0,
+    body: top && est.body_cm != null ? steps(est.body_cm - BODY * h) : 0,
+    legs: bottom && est.leg_cm != null ? steps(est.leg_cm - LEG * h) : 0,
+    off: 0,
+  };
+  out.off = [out.sleeves, out.body, out.legs].reduce((a, b) => (Math.abs(b) > Math.abs(a) ? b : a), 0);
+  return out;
+}
+
+/** "Too short: sleeves and trousers" / "Too long: sleeves" / "" when the length is fine. */
+export function lengthText(l: Length | null | undefined): string {
+  if (!l || !l.off) return '';
+  const name: Record<string, string> = { sleeves: 'sleeves', body: 'top', legs: 'trousers' };
+  const list = (sign: number) =>
+    (['sleeves', 'body', 'legs'] as const).filter((p) => Math.sign(l[p]) === sign).map((p) => name[p]);
+  const join = (xs: string[]) => (xs.length > 1 ? `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}` : xs[0]);
+  const short = list(-1);
+  const long = list(1);
+  const out: string[] = [];
+  if (short.length) out.push(`Too short for your height: ${join(short)}.`);
+  if (long.length) out.push(`Too long for your height: ${join(long)}.`);
+  return out.join(' ');
+}
 
 /** The size this shopper needs for an outfit made of these parts (upper / lower / dress). */
 export function neededSize(est: SizeEstimate, parts: Set<string>): number | null {
