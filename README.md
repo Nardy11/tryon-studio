@@ -44,21 +44,21 @@ The photo is decoded (any size, HEIC included), every pixel is labelled (face, h
 clothes, skirt, arms, legs…), and **MediaPipe Pose** gives a *body ruler*: 0 = shoulders, 1 = hips,
 2 = knees, 3 = ankles.
 
-![Steps 1-3: intake](docs/images/steps-01-03-intake.jpg)
+![Steps 1-3: intake](docs/images/steps-01-03-intake.webp)
 
 ### 4 · Safety check (before anything runs)
 
 Two local models on the CPU: a **nudity classifier** and **CLIP**, which scores phrases like
 "a person in lingerie". The worst of three crops counts. If a check can't run, nothing runs.
 
-![Step 4: safety check](docs/images/step-04.jpg)
+![Step 4: safety check](docs/images/step-04.webp)
 
 ### 5 · Quality check: is the photo clear enough?
 
 Sharpness, light, one face, framing, legs when needed. A poor photo gets a friendly "please
 upload another one", **before** any GPU time is spent. Size alone never refuses a photo.
 
-![Step 5: quality check](docs/images/step-05.jpg)
+![Step 5: quality check](docs/images/step-05.webp)
 
 ### 6 · Read the pieces
 
@@ -66,34 +66,34 @@ Colours are clustered in Lab space and grouped into garments (light and shadow o
 one garment). Each hem is measured on the body ruler: *"taupe hip-length jacket, closed; dark
 brown top; dark brown knee-length skirt"*.
 
-![Step 6: read the pieces](docs/images/step-06.jpg)
+![Step 6: read the pieces](docs/images/step-06.webp)
 
 ### 7 · Move the hem onto your body
 
 A jacket that ends at 0.89 on the model's ruler ends at 0.89 on yours: the same body point, so it
 fits your proportions instead of the model's.
 
-![Step 7: move the hem](docs/images/step-07.jpg)
+![Step 7: move the hem](docs/images/step-07.webp)
 
 ### 8 · Build the mask: where may the model paint?
 
 Old clothes and arms, grown slightly and extended to the new hem. Face, hair, hands and anything
 you hold are protected. The crop always includes your whole head.
 
-![Step 8: build the mask](docs/images/step-08.jpg)
+![Step 8: build the mask](docs/images/step-08.webp)
 
 ### 9 · Prepare the pictures
 
 Your crop, the outfit's real pixels (with the model's face blanked out), and a prompt built only
 from fixed words and the checklist. No free text ever reaches the model.
 
-![Step 9: prepare the pictures](docs/images/step-09.jpg)
+![Step 9: prepare the pictures](docs/images/step-09.webp)
 
 ### 10 · FLUX.2 Klein on the GPU
 
 FLUX.2 Klein 4B (4-bit, 4 steps, about 15–25 s on a laptop RTX 4060) draws you in the outfit.
 
-![Step 10: FLUX.2 Klein](docs/images/step-10.jpg)
+![Step 10: FLUX.2 Klein](docs/images/step-10.webp)
 
 ### 11 · Layer it back onto your photo
 
@@ -101,7 +101,7 @@ Bottom to top: your original photo, then the model's pixels inside the clothes a
 hair removed, colours matched to the outfit and to your skin, and finally **your own face and hair
 pasted back, pixel for pixel**.
 
-![Step 11: layering](docs/images/step-11.jpg)
+![Step 11: layering](docs/images/step-11.webp)
 
 ### 12 · Three independent checks before you see it
 
@@ -109,7 +109,7 @@ A nudity detector, a CLIP garment check, and a **skin-coverage check per body re
 with the outfit photo. Skin may show only where the outfit shows it. Fail → one more try with a new
 seed → still failing → *"We couldn't make this look properly."*
 
-![Step 12: three checks](docs/images/step-12.jpg)
+![Step 12: three checks](docs/images/step-12.webp)
 
 ### 13 · Delivery
 
