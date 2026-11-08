@@ -26,3 +26,6 @@ server/scripts/download_watchdog.sh
 
 # Needs the 'workflow' permission to push; added once that is granted
 .github/workflows/pages.yml
+
+# Local tools (cloudflared)
+tools/
