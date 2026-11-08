@@ -1,0 +1,28 @@
+# Python
+server/.venv/
+__pycache__/
+*.pyc
+
+# Web
+web/node_modules/
+web/dist/
+
+# Third-party code we clone locally (CatVTON is CC BY-NC-SA: never vendor it into this repo)
+third_party/
+
+# Test photos and outputs: personal images never go into git
+samples/
+
+.env
+
+# Code removed from the product (kept locally only)
+archive/
+
+# Model files are downloaded by server/scripts/download_models.py
+server/models/
+
+# One-off local helper with machine-specific paths
+server/scripts/download_watchdog.sh
+
+# Needs the 'workflow' permission to push; added once that is granted
+.github/workflows/pages.yml

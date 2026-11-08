@@ -1,0 +1,25 @@
+# Install PyTorch first, matching your CUDA driver:
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
+diffusers>=0.36
+transformers
+accelerate
+bitsandbytes
+safetensors
+peft
+huggingface_hub
+fastapi
+uvicorn[standard]
+python-multipart
+pillow
+pillow-heif
+matplotlib
+numpy
+opencv-python-headless
+scipy
+scikit-image
+omegaconf
+tqdm
+
+# MediaPipe Pose: install WITHOUT its dependencies, or it pulls a second OpenCV build that clashes
+# with opencv-python-headless above:
+#   pip install --no-deps mediapipe==1.2.2 absl-py flatbuffers
