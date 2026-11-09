@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Velvet Mirror">
+  <defs>
+    <linearGradient id="glass" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fbf3df"/>
+      <stop offset="1" stop-color="#e7d6b4"/>
+    </linearGradient>
+    <linearGradient id="velvet" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#5a0a14"/>
+      <stop offset="0.5" stop-color="#a51b2a"/>
+      <stop offset="1" stop-color="#6e0d18"/>
+    </linearGradient>
+    <clipPath id="inner"><path d="M17 58V24a15 15 0 0 1 30 0v34z"/></clipPath>
+  </defs>
+  <!-- glass -->
+  <path d="M17 58V24a15 15 0 0 1 30 0v34z" fill="url(#glass)"/>
+  <g clip-path="url(#inner)">
+    <!-- curtains drawn back to the sides -->
+    <path d="M15 8h11c-1 14-6 22-2 30 2 5 1 13-1 20H15z" fill="url(#velvet)"/>
+    <path d="M49 8H38c1 14 6 22 2 30-2 5-1 13 1 20h8z" fill="url(#velvet)"/>
+    <!-- glass highlight -->
+    <path d="M29 22l6-6M29 30l10-10" stroke="#fff" stroke-width="2" stroke-linecap="round" opacity="0.7"/>
+  </g>
+  <!-- gold frame -->
+  <path d="M17 58V24a15 15 0 0 1 30 0v34z" fill="none" stroke="#d9b45a" stroke-width="4" stroke-linejoin="round"/>
+  <path d="M11 58h42" stroke="#d9b45a" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="32" cy="6" r="3" fill="#d9b45a"/>
+</svg>
