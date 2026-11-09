@@ -417,7 +417,7 @@ export default function App() {
     <div className="app">
       <header className="topbar">
         <div className="brand">
-          <span className="brand-mark" aria-hidden="true" />
+          <img className="brand-mark" src={`${import.meta.env.BASE_URL}logo.svg`} alt="" width={30} height={30} />
           <h1>Velvet Mirror</h1>
         </div>
         <ServerPill health={health} down={serverDown} />

@@ -70,10 +70,7 @@ code { font-family: var(--f-mono); font-size: 0.9em; }
 }
 .brand { display: flex; align-items: center; gap: 10px; }
 .brand h1 { margin: 0; font-family: var(--f-display); font-weight: 700; font-size: 17px; letter-spacing: 0.01em; }
-.brand-mark {
-  width: 14px; height: 22px; border-radius: 7px 7px 2px 2px;
-  border: 2px solid var(--ink); background: var(--glass);
-}
+.brand-mark { width: 30px; height: 30px; display: block; flex: none; }
 .pill {
   font-family: var(--f-mono); font-size: 12px; padding: 4px 10px; border-radius: 999px;
   border: 1px solid var(--line); color: var(--muted); white-space: nowrap;

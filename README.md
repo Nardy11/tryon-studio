@@ -1,6 +1,8 @@
 <div align="center">
 
-# 🪞 Velvet Mirror
+<img src="docs/images/logo.svg" alt="Velvet Mirror logo" width="96" height="96" />
+
+# Velvet Mirror
 
 **Step into the mirror. Pick an outfit. The curtains open on you wearing it.**
 
