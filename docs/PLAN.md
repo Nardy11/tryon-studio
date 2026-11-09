@@ -1,12 +1,12 @@
-# Fitting Room: plan
+# Velvet Mirror: plan
 
 ## Goal
 
 A reusable try-on block that drops into any shop. A shopper sees themselves wearing a garment
 from the front, side and back. It runs on **our own GPU servers**, not a vendor API.
 
-The reference product is Anywear (Decart). It streams the camera to Decart's GPUs over WebRTC, and
-their Lucy VTON video model redraws every frame live, at about 2 credits per second.
+Commercial live try-on products stream the camera to a vendor's GPUs over WebRTC, where a video
+model redraws every frame live and is billed per second of video.
 
 We start with **photo mode**, which is far cheaper because the GPU works for a few seconds per photo
 instead of every second of video. Live video comes later, on the same garment and engine
@@ -16,7 +16,7 @@ foundations.
 
 | Phase | What | Status |
 |---|---|---|
-| **1. Website, photo mode, local GPU** | Fitting Room site, FastAPI GPU service, FLUX.2 Klein + CatVTON + 2D overlay, job queue, in-memory privacy | **Built in this repo** |
+| **1. Website, photo mode, local GPU** | Velvet Mirror site, FastAPI GPU service, FLUX.2 Klein + CatVTON + 2D overlay, job queue, in-memory privacy | **Built in this repo** |
 | 2. Quality pass | Run the evaluation set (below), tune prompts, decide whether Klein needs a try-on LoRA fine-tune | Next |
 | 3. Server deployment | Docker image, scale-to-zero GPU workers, object-store-free (in-memory) results, per-tenant API keys, rate limits, metering | |
 | 4. Embeddable widget | `<tryon-mirror>` web component + one-line script tag for any shop page | |
@@ -28,7 +28,7 @@ foundations.
 ```
 Browser (web/)                                  GPU server (server/)
 ──────────────────────────────                  ─────────────────────────────────────────
-Fitting Room UI                                  FastAPI  /api/tryon  /api/jobs/{id}
+Velvet Mirror UI                                  FastAPI  /api/tryon  /api/jobs/{id}
  ├─ photo slots: front / side / back             │
  ├─ garment front (+ optional back)              ▼
  ├─ 2D overlay (MediaPipe Pose, in-browser) ◄─┐  JobManager: bounded queue, ONE worker thread,

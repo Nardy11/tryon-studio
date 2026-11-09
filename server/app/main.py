@@ -35,7 +35,7 @@ ENGINES = {
 jobs = JobManager(ENGINES)
 safety.warm_up()
 
-app = FastAPI(title="Try-On Studio API", version="0.1.0")
+app = FastAPI(title="Velvet Mirror API", version="0.1.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=list(settings.cors_origins),

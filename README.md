@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🪞 Try-On Studio
+# 🪞 Velvet Mirror
 
 **Step into the mirror. Pick an outfit. The curtains open on you wearing it.**
 
@@ -8,7 +8,7 @@ A self-hosted virtual try-on: upload a photo (or use your camera), add one or mo
 and see yourself in them — your own face, pose and background, with the clothes changed and
 nothing else.
 
-**[▶ Open the live site](https://nardy11.github.io/tryon-studio/)** ·
+**[▶ Open the live site](https://nardy11.github.io/velvet-mirror/)** ·
 [How it works](#-how-it-works-step-by-step) ·
 [Safety & privacy](#-safety--privacy) ·
 [Run it yourself](#-run-it-yourself)
@@ -19,7 +19,7 @@ nothing else.
 ![FastAPI](https://img.shields.io/badge/server-FastAPI%20%2B%20PyTorch-009688)
 ![Self-hosted GPU](https://img.shields.io/badge/runs%20on-your%20own%20GPU-76b900)
 [![MIT licence](https://img.shields.io/badge/licence-MIT-blue)](LICENSE)
-[![Release](https://img.shields.io/github/v/release/Nardy11/tryon-studio?color=d9b45a)](https://github.com/Nardy11/tryon-studio/releases)
+[![Release](https://img.shields.io/github/v/release/Nardy11/velvet-mirror?color=d9b45a)](https://github.com/Nardy11/velvet-mirror/releases)
 
 </div>
 
@@ -130,6 +130,12 @@ or too long, so you see the fit before you order.
 ![Fit gallery: fits, too small, too big, too small and too short](docs/images/fit-gallery.webp)
 
 <sub>The same person and outfit, only the size changes. Faces are blurred in these examples.</sub>
+
+### The whole size check at a glance
+
+![How the size check works: measure, compare with the sizes in stock, draw the fit, check it](docs/images/fit-process.webp)
+
+<sub>An overview. The exact numbers used are in the tables below.</sub>
 
 ### Your size, from your photo and numbers
 
@@ -243,7 +249,7 @@ cloudflared tunnel --url http://localhost:8000
 ```
 
 Copy the `https://….trycloudflare.com` address it prints, then share
-`https://nardy11.github.io/tryon-studio/?server=<that address>`. Visitors use your GPU while the
+`https://nardy11.github.io/velvet-mirror/?server=<that address>`. Visitors use your GPU while the
 laptop is on and the tunnel is running.
 
 ### Settings

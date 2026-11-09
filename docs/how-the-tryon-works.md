@@ -156,6 +156,6 @@ Deleting a job also stops its generation on the GPU.
 ## Still open
 
 - The safety checks have been tested on simulated images, not real underwear, swimwear or nude photos. A licensed test set should be run before launch.
-- What the app does with photos on its side (database, S3) is outside this server. Rules: `tryon-studio\docs\SAFETY.md`.
+- What the app does with photos on its side (database, S3) is outside this server. Rules: `docs\SAFETY.md`.
 - The server has no login or rate limit.
 - Accessories can swap (the model's watch instead of the person's), and shoes aren't changed.

@@ -418,7 +418,7 @@ export default function App() {
       <header className="topbar">
         <div className="brand">
           <span className="brand-mark" aria-hidden="true" />
-          <h1>Fitting Room</h1>
+          <h1>Velvet Mirror</h1>
         </div>
         <ServerPill health={health} down={serverDown} />
       </header>

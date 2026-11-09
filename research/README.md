@@ -1,10 +1,10 @@
 # Engine V research: a real-time video try-on model
 
-Goal: Live mode like Anywear. The person is redrawn wearing the outfit on every frame, at
+Goal: a real-time Live mode. The person is redrawn wearing the outfit on every frame, at
 15–20 processed fps, self-hosted. Plan and costs: see the plan of 2026-11-08, phases R0–R5.
 Data, frames, checkpoints and the research venv stay local (git-ignored).
 
-## Quality bar, read from the reference recording (Anywear, `my-session (1).mp4`)
+## Quality bar, read from a reference recording of a commercial live try-on
 
 | | Reference |
 |---|---|
@@ -22,5 +22,8 @@ speed. That is what Engine V is measured against in R5, alongside fps and latenc
 
 1. ✅ Reference frames extracted to `research/eval/reference-frames/` (every 1.5 s) and the quality bar above.
 2. ⏳ StreamDiffusionV2 (Apache 2.0) on the laptop RTX 4060 8 GB at 320–480p: fps, latency, VRAM, identity drift.
+   - Linux only, so it runs in the laptop's existing WSL2 Ubuntu.
+   - Downloads: `Wan-AI/Wan2.1-T2V-1.3B` 17.6 GB (Apache 2.0, confirmed on the model card; 11.4 GB of it is the umt5-xxl text encoder, which goes on the CPU) and `jerryfeng/StreamDiffusionV2` `wan_causal_dmd_v2v/` 5.7 GB (Apache 2.0), plus the TAEHV decoder (MIT, small).
+   - Disk: about 30 GB with the Python environment; C: had 42 GB free on 2026-11-08.
 3. ⏳ The same on a rented RTX 4090 and an H100 (budget approval first).
 4. Exit: a measured table and the serving-GPU decision.
