@@ -121,6 +121,68 @@ it's gone after 2 minutes.
 
 ---
 
+## 📏 Size & length check: see how it would really fit
+
+Type your **height** (and, if you like, your **weight**). Each outfit has its **sizes in stock**
+(XS–XL). The try-on is then drawn **in the size you could actually buy**: tight or baggy, too short
+or too long, so you see the fit before you order.
+
+![Fit gallery: fits, too small, too big, too small and too short](docs/images/fit-gallery.webp)
+
+<sub>The same person and outfit, only the size changes. Faces are blurred in these examples.</sub>
+
+### Your size, from your photo and numbers
+
+![The estimate changes with height and weight](docs/images/size-estimates.webp)
+
+1. **The ruler.** Your height turns pixels into centimetres. The most accurate case is head to feet in view; with the feet cut off the torso is used, then the head.
+2. **Your frame** comes from your skeleton (MediaPipe Pose): chest ≈ 2.6 × shoulder-joint width + 8 cm, waist ≈ 4.1 × hip-joint width.
+3. **Your weight**, if given, adds how full the body is (a body-mass estimate counts for 75% of the chest). Without it the result is marked *rough*.
+4. **Size chart** (unisex, cm). A full outfit uses the larger of your top and bottom sizes. Beyond XL is shown as "XL + 1", "XL + 2"…
+
+| | XS | S | M | L | XL |
+|---|---|---|---|---|---|
+| Chest | < 88 | 88–96 | 96–104 | 104–112 | 112–120 |
+| Waist | < 70 | 70–76 | 76–82 | 82–88 | 88–96 |
+| Made for height | 160 | 166 | 172 | 178 | 184 |
+
+### Width: tight or baggy
+
+| You | In stock | Verdict | Drawn as |
+|---|---|---|---|
+| M | S–XL | **Fits** | your size |
+| M | S, L | **A little loose** | L, slightly roomy |
+| XL | up to L | **Snug** | L, a bit tight |
+| XL (177 cm · 83 kg) | S | **3 sizes too small** | taut fabric, pull creases at the buttons, clinging |
+| S (177 cm · 55 kg) | XL | **3 sizes too big** | dropped shoulders, wide sleeves, baggy trousers |
+
+### Length: too short or too long for your height
+
+Each size is cut for a height. Your arm (0.335 × height), torso (0.29) and leg (0.47) are compared
+with what the size worn is cut for:
+
+| Difference | Verdict |
+|---|---|
+| under 4 cm | fine |
+| 4–8 cm | a little short / long |
+| 8–12 cm | too short / long |
+| over 12 cm | far too short / long |
+
+| You | Worn | Shows as |
+|---|---|---|
+| 185 cm, needs L | XS | sleeves end above the wrists, trousers at mid-calf showing the socks (~8–12 cm short) |
+| 190 cm | S | sleeves and trousers too short |
+| 158 cm | XL | sleeves over the hands, trousers bunching on the shoes |
+
+Length is drawn with small local edits at the wrists, ankles and hem, found on the skeleton, so only
+those areas change. A top that's too short stays text-only: the midriff is never shown.
+
+**Every look still passes the three safety checks.** If a tight or short version can't be drawn
+safely, you're shown in your own size, with a note saying so. Height and weight are used in memory
+only and never stored or logged.
+
+---
+
 ## 🏗️ Architecture
 
 ```
