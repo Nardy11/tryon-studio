@@ -35,3 +35,7 @@ research/eval/
 research/data/
 research/checkpoints/
 research/.venv/
+
+# Dropped video research scripts (kept locally)
+research/r0_bench.py
+research/setup_wsl.sh
