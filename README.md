@@ -224,6 +224,40 @@ Details: [docs/SAFETY.md](docs/SAFETY.md) · Full walkthrough: [docs/how-the-try
 
 ---
 
+## 📊 Performance & model card
+
+**Measured on a laptop RTX 4060 (8 GB VRAM)**
+
+| | |
+|---|---|
+| Time per look | about 15–25 s (FLUX.2 Klein 4B, 4-bit, 4 steps, 1024 px longest side) |
+| Size check | one extra edit pass per look that's off in width, plus small local edits for length |
+| Photo checks | CPU only, before any GPU time is spent |
+| Cost per look | GPU electricity only. No API, no tokens |
+
+**The models in the pipeline**
+
+| Stage | Model | Runs on | Job |
+|---|---|---|---|
+| Garment edit | FLUX.2 Klein 4B (4-bit) | GPU | Redraws only the masked clothes area, guided by the outfit photo |
+| Clothes parsing | SegFormer-B2 clothes | GPU/CPU | Labels 18 classes (face, hair, upper, pants, arms, legs…) for masks and checks |
+| Pose | MediaPipe Pose (33 landmarks) | CPU | Body ruler for hems, size estimate and length edits |
+| Safety | Falconsai NSFW ViT + CLIP ViT-L/14 | CPU | Refuse unsafe photos in; check every result out |
+| Outfit reading | OpenCV, Lab colour clustering | CPU | Pieces, colours, hem positions: the checklist the result is checked against |
+
+**Intended use:** previewing clothes from an online shop on yourself, by an adult or a parent for a child.
+Not for editing other people's photos without their consent.
+
+**Limits we know of**
+- One person per photo, facing the camera. Strong turns and heavy occlusion can give a weaker result.
+- The size estimate uses a unisex chart and body proportions. It's a guide, not a tape measure, and it
+  hasn't been calibrated on real measurements yet.
+- Trousers drawn too long can lose some colour. A tight edit can drop small layered pieces
+  (a sweater tied over the shoulders).
+- Faces are never redrawn. They're pasted back pixel for pixel, so the model can't change who you are.
+
+---
+
 ## 🚀 Run it yourself
 
 **Needs:** Windows or Linux, Python 3.11, Node 20+, pnpm, an NVIDIA GPU with 8 GB+ VRAM, about 25 GB of disk for the models.
