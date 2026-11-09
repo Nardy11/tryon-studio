@@ -31,7 +31,7 @@ def match_skin_tone(
     the tone wrong (pale/grey arms next to a warm, sunlit face). Reference = skin the parser finds
     in the original photo (face, plus any arms that were already visible).
     """
-    from .parsing import FACE, L_ARM, R_ARM
+    from .parsing import FACE, L_ARM, L_LEG, R_ARM, R_LEG
 
     info = {"applied": False}
     original = original.resize(result.size, Image.LANCZOS)
@@ -40,23 +40,32 @@ def match_skin_tone(
     o_lab, r_lab = _lab(original), _lab(result)
 
     ref_mask = np.isin(o_labels, [FACE, L_ARM, R_ARM])
-    # Skin in the result that wasn't skin in the original = newly generated.
-    new_skin = np.isin(r_labels, [FACE, L_ARM, R_ARM]) & ~ref_mask
+    # Skin in the result that wasn't skin in the original = newly generated (arms out of short
+    # sleeves, shins under short trousers).
+    new_skin = np.isin(r_labels, [FACE, L_ARM, R_ARM, L_LEG, R_LEG]) & ~np.isin(o_labels, [FACE, L_ARM, R_ARM, L_LEG, R_LEG])
     if ref_mask.sum() < 400 or new_skin.sum() < 400:
         return result, info
 
-    ref = o_lab[ref_mask]
-    src = r_lab[new_skin]
-    r_mean, s_mean = ref.mean(0), src.mean(0)
-    delta = float(np.linalg.norm(r_mean - s_mean))
-    info["delta_e"] = round(delta, 1)
-    if delta < 5:
-        return result, info
-
-    # Shift colour (a, b) fully and lightness partly: lighting differs across the body.
-    shift = (r_mean - s_mean) * np.array([0.6, 1.0, 1.0], dtype=np.float32)
+    r_mean = o_lab[ref_mask].mean(0)
     out = r_lab.copy()
-    out[new_skin] = r_lab[new_skin] + shift * strength
+    # Each patch on its own (left arm, right arm, each shin): one shared shift left a single arm
+    # visibly off in tone. Colour (a, b) fully, lightness partly: lighting differs across the body.
+    n, comp = cv2.connectedComponents(new_skin.astype(np.uint8))
+    worst = 0.0
+    for i in range(1, n):
+        patch = comp == i
+        if patch.sum() < 150:
+            continue
+        s_mean = r_lab[patch].mean(0)
+        delta = float(np.linalg.norm(r_mean - s_mean))
+        worst = max(worst, delta)
+        if delta < 5:
+            continue
+        shift = (r_mean - s_mean) * np.array([0.6, 1.0, 1.0], dtype=np.float32)
+        out[patch] = r_lab[patch] + shift * strength
+    info["delta_e"] = round(worst, 1)
+    if worst < 5:
+        return result, info
     out = np.clip(out, 0, 255).astype(np.uint8)
     corrected = Image.fromarray(cv2.cvtColor(out, cv2.COLOR_LAB2RGB))
     alpha = Image.fromarray((new_skin * 255).astype(np.uint8), "L").filter(ImageFilter.GaussianBlur(3))

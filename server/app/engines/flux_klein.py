@@ -65,12 +65,11 @@ REFIT = {
     -1: "Make the clothes this person is wearing one size too small for them: snug and close to the body, the fabric"
         " pulled smooth across the chest, back and thighs, the sleeves slightly short." + _COVERED + _KEEP,
     -2: "Make the clothes this person is wearing two sizes too small for them, clearly too tight: the fabric pulled"
-        " taut with horizontal strain lines across the chest and stomach, the buttons gaping, the shirt clinging to"
-        " the body, the sleeves ending well above the wrists, the trousers tight on the thighs and short at the"
-        " ankles." + _COVERED + _KEEP,
+        " taut and smooth over the chest, stomach and arms, small pull creases at the buttons, the top clinging to"
+        " the body, the trousers tight on the thighs. The fabric keeps one even colour." + _COVERED + _KEEP,
     -3: "Make the clothes this person is wearing three sizes too small for them, far too tight: the fabric stretched"
-        " to its limit with deep strain lines everywhere, the buttons pulling open, the sleeves stopping halfway down"
-        " the forearms, the trousers skin-tight and far above the ankles." + _COVERED + _KEEP,
+        " taut and smooth over the whole body, pull creases at the buttons and seams, the top clinging to the body,"
+        " the trousers skin-tight. The fabric keeps one even colour." + _COVERED + _KEEP,
     1: "Make the clothes this person is wearing one size too big for them: relaxed and roomy, with soft folds and"
        " slightly long sleeves." + _KEEP,
     2: "Make the clothes this person is wearing two sizes too big for them, clearly oversized: loose billowing fabric"
@@ -433,6 +432,10 @@ def _length_region(img: Image.Image, part: str, step: int):
     if pose is None:
         return None
     w, h = img.size
+    from ..preprocess.parsing import PANTS, SKIRT, parser
+
+    trousers = np.isin(parser.labels(img), [PANTS, SKIRT])
+    ys, xs = np.mgrid[0:h, 0:w].astype(np.float32)
     P = [(x * w, y * h, v) for x, y, v in pose]
     seen = lambda i: P[i][2] > 0.5  # noqa: E731
     region = np.zeros((h, w), bool)
@@ -444,9 +447,12 @@ def _length_region(img: Image.Image, part: str, step: int):
             K, A = np.array(P[knee][:2]), np.array(P[ankle][:2])
             shin = float(np.linalg.norm(K - A))
             down = (A - K) / (shin or 1)
-            if step < 0:  # the hem rises: the band above the ankle becomes ankle and sock
-                top = A - down * shin * (0.15 + 0.12 * n)
-                region |= _capsule((h, w), top, A + down * shin * 0.05, shin * 0.16)
+            if step < 0:  # the hem rises: everything of the trouser leg below the new hem goes
+                hem = A - down * shin * (0.15 + 0.12 * n)
+                below = (xs - hem[0]) * down[0] + (ys - hem[1]) * down[1] > 0
+                near_leg = _capsule((h, w), K, A + down * shin * 0.25, shin * 0.5)
+                region |= trousers & near_leg & below
+                region |= _capsule((h, w), hem, A + down * shin * 0.05, shin * 0.2)
             else:  # extra fabric breaks over the top of the shoe, around the leg (not across the floor)
                 region |= _capsule((h, w), A - down * shin * (0.2 + 0.05 * n), A + down * shin * 0.12, shin * (0.16 + 0.02 * n))
     elif part == "sleeves":
@@ -466,6 +472,10 @@ def _length_region(img: Image.Image, part: str, step: int):
         torso = float(np.linalg.norm(H - S))
         width = abs(P[23][0] - P[24][0]) * 1.4 + torso * 0.3
         region |= _capsule((h, w), H - (H - S) * 0.05, H + (H - S) / (torso or 1) * torso * (0.12 + 0.1 * n), width / 2)
+    if part == "legs" and step < 0 and region.any():
+        from ..preprocess.parsing import _dilate
+
+        region = _dilate(region, max(3, int(0.006 * max(w, h))))  # catch the fabric's soft edge too
     return region if region.any() else None
 
 
@@ -520,7 +530,7 @@ def _refit(engine: "FluxKleinEngine", req: TryOnRequest, img: Image.Image) -> Im
     # clauses ride along. At least one pass when only the length is off.
     width_step = (2 if off > 0 else -2) if abs(off) >= 2 else off
     step = _refit_prompt(width_step, None)
-    for k in range(abs(off)):
+    for k in range(min(abs(off), 2)):  # a third round stacked creases into stripes
         req.check_cancel()
         out = engine._pipe(
             image=[out],

@@ -413,7 +413,7 @@ def _extra_skin(
         # by design. Shins only; chest, belly and thighs keep the strict rule.
         legs_short = -min(0, int((length or {}).get("legs", 0)))
         if region == "shins" and legs_short:
-            limit += 0.2 * legs_short
+            limit += 0.3 * legs_short  # matches how far the hem is cut (0.15 + 0.12 per step of the shin)
         report[region] = {"now": round(share, 3), "allowed": round(limit, 3)}
         if share > limit:
             over = True
