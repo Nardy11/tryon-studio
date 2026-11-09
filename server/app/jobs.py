@@ -302,7 +302,7 @@ class JobManager:
                         out = lock_outside_garment(req.person, out, req.category)
                     # Hard rule: the face and hair in the result are the user's own pixels, always.
                     out = lock_head(req.person, out)
-                    verdict = safety.check_result(out, req.person, outfit_photo, req.layers, req.category)
+                    verdict = safety.check_result(out, req.person, outfit_photo, req.layers, req.category, req.length)
                     if verdict.ok or verdict.code == "unavailable":
                         break
                 if not verdict.ok:

@@ -287,15 +287,19 @@ def check_result(
     outfit: Optional[Image.Image] = None,
     layers: Optional[list] = None,
     category: str = "dress",
+    length: Optional[dict] = None,
 ) -> Verdict:
-    """Gate 3: what we would show. Three independent checks; all must pass."""
+    """Gate 3: what we would show. Three independent checks; all must pass.
+
+    `length` (size check): trousers drawn too short on purpose show the ankles and lower shins, and
+    only the shins may show that extra skin, in proportion to how short they were meant to be."""
     if (v := _ready()) is not None:
         return v
     try:
         child = bool(check_person(original).scores.get("is_child"))
         nsfw = _nsfw_max(result)
         garment = _garment_unsafe(result)
-        over, cover = _extra_skin(result, original, outfit, layers or [], category, child)
+        over, cover = _extra_skin(result, original, outfit, layers or [], category, child, length)
         scores = {"nsfw": round(nsfw, 3), "underwear": round(garment, 3), "coverage": cover, "child": child}
         failed = None
         if nsfw > NSFW_RESULT or garment > GARMENT_UNSAFE:
@@ -372,7 +376,13 @@ def _skin_by_region(img: Image.Image, layer_labs: list) -> Optional[dict]:
 
 
 def _extra_skin(
-    result: Image.Image, original: Image.Image, outfit: Optional[Image.Image], layers: list, category: str, child: bool
+    result: Image.Image,
+    original: Image.Image,
+    outfit: Optional[Image.Image],
+    layers: list,
+    category: str,
+    child: bool,
+    length: Optional[dict] = None,
 ) -> tuple[bool, dict]:
     """Does any region of the result show more skin than it should?
 
@@ -399,6 +409,11 @@ def _extra_skin(
             below = min(1.0, max(0.0, (b - max(a, hem)) / (b - a)))
             allowed_from = max(allowed_from, below)
         limit = allowed_from + margin
+        # Trousers too short for the shopper's height (size check): the ankles and lower shins show
+        # by design. Shins only; chest, belly and thighs keep the strict rule.
+        legs_short = -min(0, int((length or {}).get("legs", 0)))
+        if region == "shins" and legs_short:
+            limit += 0.2 * legs_short
         report[region] = {"now": round(share, 3), "allowed": round(limit, 3)}
         if share > limit:
             over = True
